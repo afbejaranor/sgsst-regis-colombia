@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Plataforma SG-SST Regis Colombia"
+version = "1.0.0"
+id = "artifacts/sgsst"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22309
+
+[services.development]
+run = "pnpm --filter @workspace/sgsst run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/sgsst", "run", "build" ]
+publicDir = "artifacts/sgsst/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22309"
+BASE_PATH = "/"
