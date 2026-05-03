@@ -1,9 +1,10 @@
 import { useParams } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import {
   useGenerarMatriz,
   useListMatrices,
+  useGetEmpresa,
   getListMatricesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -50,13 +51,25 @@ export default function Matrices() {
   const [lastResult, setLastResult] = useState<NonNullable<ReturnType<typeof useGenerarMatriz>["data"]> | null>(null);
 
   const generar = useGenerarMatriz();
+  const { data: empresa } = useGetEmpresa(empresaId);
   const { data: matrices, isLoading } = useListMatrices(empresaId, {
     query: { queryKey: getListMatricesQueryKey(empresaId) },
   });
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
-    defaultValues: { ciiu: "4711", num_empleados: "45", procesos: "", descripcion: "" },
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+    defaultValues: { ciiu: "", num_empleados: "", procesos: "", descripcion: "" },
   });
+
+  useEffect(() => {
+    if (empresa) {
+      reset({
+        ciiu: empresa.codigo_ciiu ?? "",
+        num_empleados: empresa.num_empleados ? String(empresa.num_empleados) : "",
+        procesos: "",
+        descripcion: "",
+      });
+    }
+  }, [empresa, reset]);
 
   function onSubmit(values: FormValues) {
     generar.mutate(

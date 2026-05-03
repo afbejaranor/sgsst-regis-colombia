@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { supabase } from "../lib/supabase";
-import { DEMO_EMPRESA, getDemoCriterios } from "../lib/demo-data";
+import { DEMO_EMPRESAS, getDemoCriterios } from "../lib/demo-data";
 
 const router = Router();
 
@@ -11,10 +11,10 @@ router.get("/resumen", async (req, res) => {
     .eq("activa", true);
 
   const empresasList = empError
-    ? [DEMO_EMPRESA]
+    ? DEMO_EMPRESAS
     : empresas?.length
       ? empresas
-      : [DEMO_EMPRESA];
+      : DEMO_EMPRESAS;
 
   const { data: docs, error: docError } = await supabase
     .from("documentos_cumplimiento")
