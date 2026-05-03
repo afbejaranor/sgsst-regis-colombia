@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: SG-SST Regis Colombia API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: empresas
+  - name: cumplimiento
+  - name: trabajadores
+  - name: examenes
+  - name: matrices
+  - name: actas
+  - name: pila
+  - name: comites
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,284 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /empresas:
+    get:
+      operationId: listEmpresas
+      tags: [empresas]
+      summary: Listar todas las empresas
+      responses:
+        "200":
+          description: Lista de empresas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Empresa"
+
+  /empresas/{id}:
+    get:
+      operationId: getEmpresa
+      tags: [empresas]
+      summary: Obtener empresa por ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Empresa encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empresa"
+
+  /cumplimiento/{empresaId}:
+    get:
+      operationId: getCumplimiento
+      tags: [cumplimiento]
+      summary: Cumplimiento Res. 0312 de una empresa
+      parameters:
+        - name: empresaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Datos de cumplimiento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CumplimientoResumen"
+
+  /cumplimiento/{empresaId}/criterio/{criterioId}:
+    patch:
+      operationId: updateCriterio
+      tags: [cumplimiento]
+      summary: Actualizar estado de un criterio
+      parameters:
+        - name: empresaId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: criterioId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCriterioBody"
+      responses:
+        "200":
+          description: Criterio actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Criterio"
+
+  /dashboard/resumen:
+    get:
+      operationId: getDashboardResumen
+      tags: [cumplimiento]
+      summary: Resumen global de cumplimiento de todas las empresas
+      responses:
+        "200":
+          description: Resumen dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardResumen"
+
+  /trabajadores/{empresaId}:
+    get:
+      operationId: listTrabajadores
+      tags: [trabajadores]
+      summary: Trabajadores de una empresa
+      parameters:
+        - name: empresaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de trabajadores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trabajador"
+
+  /examenes/procesar:
+    post:
+      operationId: procesarExamen
+      tags: [examenes]
+      summary: Procesar PDF de examen médico con IA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcesarExamenBody"
+      responses:
+        "200":
+          description: Examen procesado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamenProcesado"
+
+  /examenes/{empresaId}:
+    get:
+      operationId: listExamenes
+      tags: [examenes]
+      summary: Exámenes médicos de una empresa
+      parameters:
+        - name: empresaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de exámenes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Examen"
+
+  /matrices/generar:
+    post:
+      operationId: generarMatriz
+      tags: [matrices]
+      summary: Generar matriz GTC-45 desde código CIIU con IA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerarMatrizBody"
+      responses:
+        "200":
+          description: Matriz generada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatrizGenerada"
+
+  /matrices/{empresaId}:
+    get:
+      operationId: listMatrices
+      tags: [matrices]
+      summary: Matrices de riesgo de una empresa
+      parameters:
+        - name: empresaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de matrices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Matriz"
+
+  /actas/generar:
+    post:
+      operationId: generarActa
+      tags: [actas]
+      summary: Generar acta de comité con IA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerarActaBody"
+      responses:
+        "200":
+          description: Acta generada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActaGenerada"
+
+  /actas/{empresaId}:
+    get:
+      operationId: listActas
+      tags: [actas]
+      summary: Actas de una empresa
+      parameters:
+        - name: empresaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de actas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Acta"
+
+  /pila/procesar:
+    post:
+      operationId: procesarPila
+      tags: [pila]
+      summary: Procesar planilla PILA con IA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcesarPilaBody"
+      responses:
+        "200":
+          description: PILA procesada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PilaProcesada"
+
+  /comites/{empresaId}:
+    get:
+      operationId: listComites
+      tags: [comites]
+      summary: Comités de una empresa
+      parameters:
+        - name: empresaId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lista de comités
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comite"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +315,434 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    Empresa:
+      type: object
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        nit:
+          type: string
+        codigo_ciiu:
+          type: string
+        descripcion_actividad:
+          type: string
+          nullable: true
+        tamano:
+          type: string
+          nullable: true
+        num_empleados:
+          type: integer
+          nullable: true
+        ciudad:
+          type: string
+          nullable: true
+        contacto_nombre:
+          type: string
+          nullable: true
+        contacto_email:
+          type: string
+          nullable: true
+        nivel_sgsst:
+          type: string
+          nullable: true
+        activa:
+          type: boolean
+        puntaje_cumplimiento:
+          type: number
+          nullable: true
+      required: [id, nombre, nit, codigo_ciiu, activa]
+
+    Criterio:
+      type: object
+      properties:
+        id:
+          type: string
+        empresa_id:
+          type: string
+        estandar:
+          type: string
+        criterio_codigo:
+          type: string
+        criterio_descripcion:
+          type: string
+        peso_porcentual:
+          type: number
+        estado:
+          type: string
+          enum: [cumple, no_cumple, no_aplica, en_proceso]
+        evidencia_descripcion:
+          type: string
+          nullable: true
+        observaciones:
+          type: string
+          nullable: true
+      required: [id, empresa_id, estandar, criterio_codigo, criterio_descripcion, peso_porcentual, estado]
+
+    UpdateCriterioBody:
+      type: object
+      properties:
+        estado:
+          type: string
+          enum: [cumple, no_cumple, no_aplica, en_proceso]
+        observaciones:
+          type: string
+          nullable: true
+      required: [estado]
+
+    EstandarResumen:
+      type: object
+      properties:
+        estandar:
+          type: string
+        puntaje_obtenido:
+          type: number
+        puntaje_posible:
+          type: number
+        porcentaje:
+          type: number
+        criterios_cumplidos:
+          type: integer
+        criterios_incumplidos:
+          type: integer
+        criterios_en_proceso:
+          type: integer
+        criterios:
+          type: array
+          items:
+            $ref: "#/components/schemas/Criterio"
+      required: [estandar, puntaje_obtenido, puntaje_posible, porcentaje, criterios_cumplidos, criterios_incumplidos, criterios_en_proceso, criterios]
+
+    CumplimientoResumen:
+      type: object
+      properties:
+        empresa_id:
+          type: string
+        puntaje_total:
+          type: number
+        porcentaje_total:
+          type: number
+        nivel:
+          type: string
+        estandares:
+          type: array
+          items:
+            $ref: "#/components/schemas/EstandarResumen"
+      required: [empresa_id, puntaje_total, porcentaje_total, nivel, estandares]
+
+    EmpresaResumenDashboard:
+      type: object
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        nit:
+          type: string
+        tamano:
+          type: string
+          nullable: true
+        num_empleados:
+          type: integer
+          nullable: true
+        porcentaje_cumplimiento:
+          type: number
+        nivel_semaforo:
+          type: string
+          enum: [verde, amarillo, rojo]
+        criterios_pendientes:
+          type: integer
+      required: [id, nombre, nit, porcentaje_cumplimiento, nivel_semaforo, criterios_pendientes]
+
+    DashboardResumen:
+      type: object
+      properties:
+        total_empresas:
+          type: integer
+        promedio_cumplimiento:
+          type: number
+        empresas:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmpresaResumenDashboard"
+      required: [total_empresas, promedio_cumplimiento, empresas]
+
+    Trabajador:
+      type: object
+      properties:
+        id:
+          type: string
+        empresa_id:
+          type: string
+        nombres:
+          type: string
+        apellidos:
+          type: string
+        cedula:
+          type: string
+        cargo:
+          type: string
+          nullable: true
+        area:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        activo:
+          type: boolean
+      required: [id, empresa_id, nombres, apellidos, cedula, activo]
+
+    ProcesarExamenBody:
+      type: object
+      properties:
+        empresa_id:
+          type: string
+        trabajador_id:
+          type: string
+          nullable: true
+        pdf_base64:
+          type: string
+        nombre_trabajador:
+          type: string
+          nullable: true
+        cedula_trabajador:
+          type: string
+          nullable: true
+      required: [empresa_id, pdf_base64]
+
+    ExamenProcesado:
+      type: object
+      properties:
+        examen_id:
+          type: string
+        concepto:
+          type: string
+        restricciones:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        recomendaciones:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        requiere_seguimiento:
+          type: boolean
+        raw:
+          type: object
+          additionalProperties: true
+      required: [examen_id, concepto, restricciones, recomendaciones, requiere_seguimiento]
+
+    Examen:
+      type: object
+      properties:
+        id:
+          type: string
+        trabajador_id:
+          type: string
+          nullable: true
+        empresa_id:
+          type: string
+        tipo:
+          type: string
+          nullable: true
+        fecha_examen:
+          type: string
+          nullable: true
+        concepto:
+          type: string
+          nullable: true
+        restricciones:
+          nullable: true
+        recomendaciones:
+          nullable: true
+        created_at:
+          type: string
+      required: [id, empresa_id, created_at]
+
+    GenerarMatrizBody:
+      type: object
+      properties:
+        empresa_id:
+          type: string
+        ciiu:
+          type: string
+        num_empleados:
+          type: integer
+          nullable: true
+        procesos:
+          type: string
+          nullable: true
+        descripcion:
+          type: string
+          nullable: true
+      required: [empresa_id, ciiu]
+
+    MatrizGenerada:
+      type: object
+      properties:
+        matriz_id:
+          type: string
+        ciiu:
+          type: string
+        actividad_economica:
+          type: string
+        num_peligros:
+          type: integer
+        niveles_riesgo:
+          type: object
+          additionalProperties: true
+        peligros_prioritarios:
+          type: array
+          items:
+            type: string
+        contenido:
+          type: object
+          additionalProperties: true
+      required: [matriz_id, ciiu, actividad_economica, num_peligros, niveles_riesgo, peligros_prioritarios, contenido]
+
+    Matriz:
+      type: object
+      properties:
+        id:
+          type: string
+        empresa_id:
+          type: string
+        version:
+          type: integer
+        codigo_ciiu:
+          type: string
+          nullable: true
+        estado:
+          type: string
+        created_at:
+          type: string
+      required: [id, empresa_id, version, estado, created_at]
+
+    GenerarActaBody:
+      type: object
+      properties:
+        empresa_id:
+          type: string
+        tipo_comite:
+          type: string
+          enum: [COPASST, convivencia]
+        fecha:
+          type: string
+        hora_inicio:
+          type: string
+        hora_fin:
+          type: string
+        lugar:
+          type: string
+        asistentes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        puntos:
+          type: array
+          items:
+            type: string
+        transcripcion:
+          type: string
+          nullable: true
+      required: [empresa_id, tipo_comite, fecha, hora_inicio, hora_fin, lugar, asistentes, puntos]
+
+    ActaGenerada:
+      type: object
+      properties:
+        acta_id:
+          type: string
+        numero_acta:
+          type: string
+        tipo_comite:
+          type: string
+        fecha:
+          type: string
+        compromisos:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        texto_acta_completo:
+          type: string
+        raw:
+          type: object
+          additionalProperties: true
+      required: [acta_id, numero_acta, tipo_comite, fecha, compromisos, texto_acta_completo]
+
+    Acta:
+      type: object
+      properties:
+        id:
+          type: string
+        empresa_id:
+          type: string
+        numero_acta:
+          type: string
+          nullable: true
+        fecha_reunion:
+          type: string
+          nullable: true
+        estado:
+          type: string
+        created_at:
+          type: string
+      required: [id, empresa_id, estado, created_at]
+
+    ProcesarPilaBody:
+      type: object
+      properties:
+        empresa_id:
+          type: string
+        periodo:
+          type: string
+        pdf_base64:
+          type: string
+      required: [empresa_id, periodo, pdf_base64]
+
+    PilaProcesada:
+      type: object
+      properties:
+        registro_id:
+          type: string
+        periodo:
+          type: string
+        estado:
+          type: string
+        num_afiliados:
+          type: object
+          additionalProperties: true
+        alertas:
+          type: array
+          items:
+            type: string
+        raw:
+          type: object
+          additionalProperties: true
+      required: [registro_id, periodo, estado, num_afiliados, alertas]
+
+    Comite:
+      type: object
+      properties:
+        id:
+          type: string
+        empresa_id:
+          type: string
+        tipo:
+          type: string
+        vigencia_inicio:
+          type: string
+          nullable: true
+        vigencia_fin:
+          type: string
+          nullable: true
+        activo:
+          type: boolean
+      required: [id, empresa_id, tipo, activo]
