@@ -44,7 +44,7 @@ function buildCumplimientoResponse(empresaId: string, criterios: Record<string, 
     empresa_id: empresaId,
     puntaje_total: Math.round(puntaje_total * 10) / 10,
     porcentaje_total,
-    nivel: porcentaje_total >= 85 ? "Aceptable" : porcentaje_total >= 60 ? "Moderadamente Aceptable" : "Crítico",
+    nivel: porcentaje_total >= 90 ? "Aceptable" : porcentaje_total >= 60 ? "Moderadamente Aceptable" : "Crítico",
     estandares,
   };
 }
@@ -79,7 +79,7 @@ router.get("/dashboard/resumen", async (req, res) => {
       tamano: emp.tamano,
       num_empleados: emp.num_empleados,
       porcentaje_cumplimiento: pct,
-      nivel_semaforo: pct >= 85 ? "verde" : pct >= 60 ? "amarillo" : "rojo",
+      nivel_semaforo: pct >= 90 ? "verde" : pct >= 60 ? "amarillo" : "rojo",
       criterios_pendientes: pendientes,
     };
   });

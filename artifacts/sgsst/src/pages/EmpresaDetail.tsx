@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 function ComplianceGauge({ pct }: { pct: number }) {
-  const color = pct >= 85 ? "#059669" : pct >= 60 ? "#d97706" : "#dc2626";
+  const color = pct >= 90 ? "#059669" : pct >= 60 ? "#d97706" : "#dc2626";
   const r = 54;
   const circ = 2 * Math.PI * r;
   const stroke = (pct / 100) * circ;
@@ -38,7 +38,7 @@ function ComplianceGauge({ pct }: { pct: number }) {
         />
         <text x="70" y="65" textAnchor="middle" fontSize="22" fontWeight="700" fill={color}>{pct}%</text>
         <text x="70" y="85" textAnchor="middle" fontSize="11" fill="#6b7280">
-          {pct >= 85 ? "Aceptable" : pct >= 60 ? "Mod. Aceptable" : "Crítico"}
+          {pct >= 90 ? "Aceptable" : pct >= 60 ? "Mod. Aceptable" : "Crítico"}
         </text>
       </svg>
     </div>
@@ -69,7 +69,7 @@ function StandardRow({ est, empresaId }: { est: NonNullable<ReturnType<typeof us
     ? Math.round((est.puntaje_obtenido / est.puntaje_posible) * 100)
     : 0;
 
-  const barColor = pct >= 85 ? "bg-emerald-500" : pct >= 60 ? "bg-amber-500" : "bg-red-500";
+  const barColor = pct >= 90 ? "bg-emerald-500" : pct >= 60 ? "bg-amber-500" : "bg-red-500";
 
   function handleEstadoChange(criterioId: string, newEstado: string) {
     update.mutate(

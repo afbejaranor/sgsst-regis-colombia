@@ -44,7 +44,7 @@ router.get("/resumen", async (req, res) => {
       tamano: emp.tamano,
       num_empleados: emp.num_empleados,
       porcentaje_cumplimiento: pct,
-      nivel_semaforo: pct >= 85 ? "verde" : pct >= 60 ? "amarillo" : "rojo",
+      nivel_semaforo: pct >= 90 ? "verde" : pct >= 60 ? "amarillo" : "rojo",
       criterios_pendientes: pendientes,
     };
   });

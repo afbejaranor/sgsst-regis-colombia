@@ -75,7 +75,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className={cn("text-3xl font-bold",
-              (dashboardData.promedio_cumplimiento ?? 0) >= 85 ? "text-emerald-700" :
+              (dashboardData.promedio_cumplimiento ?? 0) >= 90 ? "text-emerald-700" :
               (dashboardData.promedio_cumplimiento ?? 0) >= 60 ? "text-amber-600" : "text-red-600"
             )}>
               {dashboardData.promedio_cumplimiento}%
@@ -83,7 +83,7 @@ export default function Dashboard() {
             <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className={cn("h-full rounded-full",
-                  (dashboardData.promedio_cumplimiento ?? 0) >= 85 ? "bg-emerald-500" :
+                  (dashboardData.promedio_cumplimiento ?? 0) >= 90 ? "bg-emerald-500" :
                   (dashboardData.promedio_cumplimiento ?? 0) >= 60 ? "bg-amber-500" : "bg-red-500"
                 )}
                 style={{ width: `${dashboardData.promedio_cumplimiento ?? 0}%` }}
@@ -145,7 +145,7 @@ export default function Dashboard() {
                         <div className="flex-1 bg-gray-200 rounded-full h-1.5">
                           <div
                             className={cn("h-1.5 rounded-full",
-                              (empresa.porcentaje_cumplimiento ?? 0) >= 85 ? "bg-emerald-500" :
+                              (empresa.porcentaje_cumplimiento ?? 0) >= 90 ? "bg-emerald-500" :
                               (empresa.porcentaje_cumplimiento ?? 0) >= 60 ? "bg-amber-500" : "bg-red-500"
                             )}
                             style={{ width: `${empresa.porcentaje_cumplimiento ?? 0}%` }}
