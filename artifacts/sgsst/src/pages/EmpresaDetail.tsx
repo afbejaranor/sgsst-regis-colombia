@@ -210,7 +210,10 @@ export default function EmpresaDetail() {
           <p className="text-muted-foreground text-sm mt-1">NIT: {empresa?.nit} · CIIU: {empresa?.codigo_ciiu}</p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="text-sm px-3 py-1">{empresa?.tamano}</Badge>
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Tamaño de empresa</span>
+            <Badge variant="outline" className="text-sm px-3 py-1">{empresa?.tamano}</Badge>
+          </div>
           <a
             href={driveUrl}
             target="_blank"
