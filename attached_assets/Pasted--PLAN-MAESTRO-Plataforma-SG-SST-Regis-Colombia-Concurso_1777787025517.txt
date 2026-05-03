@@ -1,0 +1,1274 @@
+# PLAN MAESTRO — Plataforma SG-SST Regis Colombia
+**Concurso de automatización | Deadline demo: 4 mayo 2026**
+
+---
+
+## 1. ARQUITECTURA TÉCNICA
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        CAPA DE PRESENTACIÓN                         │
+│   Replit (React + Vite)                                             │
+│   - Dashboard Admin (vista Regis)                                   │
+│   - Portal Cliente (vista empresa)                                  │
+│   - Módulo Consultor (generación de documentos)                     │
+└───────────────────────────┬─────────────────────────────────────────┘
+                            │ REST API / Webhooks
+┌───────────────────────────▼─────────────────────────────────────────┐
+│                        CAPA DE ORQUESTACIÓN                         │
+│   n8n (n8n.disier.net)                                              │
+│   6 workflows principales + 1 workflow maestro de orquestación      │
+│   Claude API como motor de IA en cada workflow                      │
+└──────┬──────────────┬────────────────┬──────────────────────────────┘
+       │              │                │
+┌──────▼──────┐ ┌─────▼──────┐ ┌──────▼──────────┐
+│  Supabase   │ │Google Drive│ │  Claude API      │
+│  (DB)       │ │(Docs)      │ │  (Skills)        │
+│  - empresas │ │  /Regis    │ │  - EXTRACTOR_PDF │
+│  - trabajad.│ │  /[empresa]│ │  - MATRIZ_GTC45  │
+│  - comités  │ │    /PILA   │ │  - ACTAS         │
+│  - cumpli.  │ │    /Examen.│ │  - EMERGENCIAS   │
+│  - CIIU     │ │    /Actas  │ │  - CONSULTOR_SST │
+└─────────────┘ └────────────┘ └──────────────────┘
+       │
+┌──────▼──────────────────────────────────────────────────────────────┐
+│                    CANALES DE COMUNICACIÓN                          │
+│   Gmail API (solicitudes PILA, notif. exámenes)                    │
+│   WhatsApp Business API / Wati (seguimiento)                        │
+│   Email working → confirmación recibido exámenes médicos           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Stack definitivo:**
+- **Frontend**: React + Vite + TailwindCSS → Replit (deploy via Replit Deployments)
+- **Backend API**: Node.js/Express → mismo Replit (o Replit separado)
+- **Automatización**: n8n Cloud (ya conectado vía MCP)
+- **Base de datos**: Supabase (ya conectado vía MCP)
+- **Storage de documentos**: Google Drive (ya conectado vía MCP)
+- **IA core**: Claude API (claude-sonnet-4-20250514)
+- **Email**: Gmail API (ya conectado vía MCP)
+
+---
+
+## 2. PRIORIZACIÓN PARA DEMO 4 DE MAYO
+
+Para mañana, los módulos más demostrables y de mayor impacto visual son:
+
+| Prioridad | Módulo | Por qué primero |
+|-----------|--------|-----------------|
+| 1 | **Módulo 6 – Dashboard** | Es el producto final visible. Sin esto no hay demo. |
+| 2 | **Módulo 2 – Exámenes médicos** | PDF in → JSON out. Demostrable en tiempo real. |
+| 3 | **Módulo 3 – Matriz CIIU** | Input un código → documento completo. Muy impactante. |
+| 4 | **Módulo 4 – Actas comités** | Template + IA = acta lista. Fácil de mostrar. |
+| 5 | **Módulo 5 – Emergencias audio** | Requiere audio real. Impresionante pero más setup. |
+| 6 | **Módulo 1 – PILA** | Más operacional. Demostrar flujo automático. |
+
+**Para la presentación del 4 de mayo:** tener Módulos 2, 3 y 6 funcionando con datos reales de al menos una empresa de prueba. Los módulos 1, 4, 5 pueden ir como "en progreso" con wireframes funcionales.
+
+---
+
+## 3. ESQUEMA DE BASE DE DATOS — SUPABASE
+
+### Tablas principales
+
+```sql
+-- EMPRESAS CLIENTE
+CREATE TABLE empresas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nombre TEXT NOT NULL,
+  nit TEXT UNIQUE NOT NULL,
+  codigo_ciiu TEXT NOT NULL,
+  descripcion_actividad TEXT,
+  tamano TEXT CHECK (tamano IN ('micro','pequeña','mediana','grande')),
+  num_empleados INTEGER,
+  direccion TEXT,
+  ciudad TEXT,
+  contacto_nombre TEXT,
+  contacto_email TEXT,
+  contacto_whatsapp TEXT,
+  drive_folder_id TEXT,         -- ID carpeta Google Drive de esta empresa
+  nivel_sgsst TEXT CHECK (nivel_sgsst IN ('basico','estandar','avanzado')),
+  fecha_inicio_contrato DATE,
+  activa BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- TRABAJADORES
+CREATE TABLE trabajadores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id UUID REFERENCES empresas(id),
+  nombres TEXT NOT NULL,
+  apellidos TEXT NOT NULL,
+  cedula TEXT NOT NULL,
+  cargo TEXT,
+  area TEXT,
+  email TEXT,
+  telefono TEXT,
+  tipo_contrato TEXT,
+  fecha_ingreso DATE,
+  activo BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- PLANTILLA PILA (mensual por empresa)
+CREATE TABLE registros_pila (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id UUID REFERENCES empresas(id),
+  periodo TEXT NOT NULL,         -- formato: 2026-04
+  estado TEXT CHECK (estado IN ('pendiente','solicitado','recibido','archivado')) DEFAULT 'pendiente',
+  fecha_solicitud TIMESTAMPTZ,
+  fecha_recepcion TIMESTAMPTZ,
+  drive_file_id TEXT,            -- ID archivo en Drive
+  intentos_solicitud INTEGER DEFAULT 0,
+  canal_ultimo_contacto TEXT,   -- email, whatsapp
+  observaciones TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- EXÁMENES MÉDICOS
+CREATE TABLE examenes_medicos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trabajador_id UUID REFERENCES trabajadores(id),
+  empresa_id UUID REFERENCES empresas(id),
+  tipo TEXT CHECK (tipo IN ('ingreso','periodico','egreso','post_incapacidad')),
+  fecha_examen DATE,
+  medico TEXT,
+  concepto TEXT CHECK (concepto IN ('apto','apto_con_restricciones','no_apto','pendiente')),
+  restricciones JSONB,           -- array de restricciones extraídas por IA
+  recomendaciones JSONB,         -- array de recomendaciones
+  texto_completo TEXT,           -- transcripción completa del PDF
+  drive_file_id TEXT,
+  email_confirmacion_enviado BOOLEAN DEFAULT false,
+  email_confirmacion_recibido BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- COMITÉS (COPASST y Convivencia)
+CREATE TABLE comites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id UUID REFERENCES empresas(id),
+  tipo TEXT CHECK (tipo IN ('COPASST','convivencia')),
+  vigencia_inicio DATE,
+  vigencia_fin DATE,            -- 2 años según normativa
+  activo BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE miembros_comite (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  comite_id UUID REFERENCES comites(id),
+  trabajador_id UUID REFERENCES trabajadores(id),
+  rol TEXT CHECK (rol IN ('presidente','secretario','vocal_titular','vocal_suplente','representante_empleador','representante_trabajadores')),
+  tipo TEXT CHECK (tipo IN ('titular','suplente')),
+  vigencia_inicio DATE,
+  vigencia_fin DATE,
+  activo BOOLEAN DEFAULT true,
+  -- LOG de cambios
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  updated_by TEXT                -- email del consultor que hizo el cambio
+);
+
+-- Historial de cambios en comités
+CREATE TABLE miembros_comite_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  miembro_id UUID REFERENCES miembros_comite(id),
+  accion TEXT,                  -- 'creado', 'modificado', 'desactivado'
+  campo_modificado TEXT,
+  valor_anterior TEXT,
+  valor_nuevo TEXT,
+  modificado_por TEXT,
+  modificado_en TIMESTAMPTZ DEFAULT now()
+);
+
+-- ACTAS DE COMITÉ
+CREATE TABLE actas_comite (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  comite_id UUID REFERENCES comites(id),
+  empresa_id UUID REFERENCES empresas(id),
+  numero_acta TEXT,             -- Ej: COPASST-2026-04
+  fecha_reunion TIMESTAMPTZ,
+  lugar TEXT,
+  transcripcion_audio TEXT,    -- transcripción automática de la reunión
+  puntos_tratados JSONB,       -- array ingresado por consultor
+  acta_generada TEXT,          -- texto completo del acta generada por IA
+  drive_file_id TEXT,          -- Word/PDF generado
+  estado TEXT CHECK (estado IN ('borrador','revisado','firmado','archivado')) DEFAULT 'borrador',
+  asistentes_confirmados JSONB, -- array de IDs con timestamps de confirmación
+  link_asistencia TEXT,        -- link único para registro digital de asistencia
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- MATRICES DE RIESGO GTC-45
+CREATE TABLE matrices_riesgo (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id UUID REFERENCES empresas(id),
+  version INTEGER DEFAULT 1,
+  codigo_ciiu TEXT,
+  contenido_json JSONB,         -- estructura completa de la matriz
+  estado TEXT CHECK (estado IN ('borrador','revisado','aprobado_arl')) DEFAULT 'borrador',
+  drive_file_id_borrador TEXT,
+  drive_file_id_arl TEXT,       -- versión aprobada por ARL
+  fecha_aprobacion_arl DATE,
+  consultor TEXT,               -- email del consultor que la generó
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- PLAN DE EMERGENCIAS
+CREATE TABLE planes_emergencia (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id UUID REFERENCES empresas(id),
+  version INTEGER DEFAULT 1,
+  -- Audios por sección
+  audio_amenazas_url TEXT,
+  audio_recursos_url TEXT,
+  audio_vulnerabilidades_url TEXT,
+  audio_estructura_respuesta_url TEXT,
+  audio_inventario_url TEXT,
+  -- Transcripciones por sección
+  transcripcion_amenazas TEXT,
+  transcripcion_recursos TEXT,
+  transcripcion_vulnerabilidades TEXT,
+  transcripcion_estructura TEXT,
+  transcripcion_inventario TEXT,
+  -- Documento generado
+  analisis_vulnerabilidad JSONB,
+  documento_generado TEXT,
+  drive_file_id TEXT,
+  estado TEXT CHECK (estado IN ('en_proceso','borrador','revisado','aprobado')) DEFAULT 'en_proceso',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- DOCUMENTOS DE CUMPLIMIENTO (motor de puntos Res. 0312)
+CREATE TABLE documentos_cumplimiento (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  empresa_id UUID REFERENCES empresas(id),
+  estandar TEXT,                -- Ej: 'I. Recursos'
+  criterio_codigo TEXT,         -- Ej: '1.1.1'
+  criterio_descripcion TEXT,
+  peso_porcentual DECIMAL(5,2), -- peso según Res. 0312
+  estado TEXT CHECK (estado IN ('cumple','no_cumple','no_aplica','en_proceso')) DEFAULT 'no_cumple',
+  evidencia_descripcion TEXT,
+  drive_file_id TEXT,           -- documento de evidencia
+  fecha_carga TIMESTAMPTZ,
+  consultor TEXT,
+  observaciones TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- CIIU (tabla de referencia)
+CREATE TABLE ciiu (
+  codigo TEXT PRIMARY KEY,
+  seccion TEXT,
+  division TEXT,
+  grupo TEXT,
+  clase TEXT,
+  descripcion TEXT,
+  descripcion_detallada TEXT,
+  -- Riesgos típicos pre-clasificados para Módulo 3
+  riesgos_fisicos JSONB,
+  riesgos_quimicos JSONB,
+  riesgos_biologicos JSONB,
+  riesgos_psicosociales JSONB,
+  riesgos_ergonomicos JSONB,
+  riesgos_locativos JSONB,
+  riesgos_mecanicos JSONB,
+  riesgos_electricos JSONB,
+  nivel_riesgo_predominante TEXT
+);
+
+-- PARAMETROS DEL SISTEMA
+CREATE TABLE parametros_sistema (
+  clave TEXT PRIMARY KEY,
+  valor TEXT,
+  descripcion TEXT,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Insertar parámetros iniciales
+INSERT INTO parametros_sistema VALUES
+('pila_dia_solicitud', '1', 'Día del mes para enviar solicitud PILA'),
+('pila_dias_recordatorio', '5', 'Días de espera antes de primer recordatorio'),
+('pila_dias_segundo_recordatorio', '10', 'Días para segundo recordatorio'),
+('tamano_micro_max', '10', 'Máximo empleados empresa micro (MIPYMES Colombia)'),
+('tamano_pequeña_max', '50', 'Máximo empleados empresa pequeña'),
+('tamano_mediana_max', '200', 'Máximo empleados empresa mediana');
+```
+
+---
+
+## 4. MOTOR DE CUMPLIMIENTO — Resolución 0312 de 2019
+
+La Res. 0312 establece estándares mínimos según tamaño de empresa. El motor de puntos calcula el porcentaje en tiempo real.
+
+### Estructura de pesos por estándar (empresas >50 trabajadores, Nivel III):
+
+```javascript
+const ESTANDARES_0312 = {
+  "I_PLANEAR": {
+    nombre: "Recursos",
+    peso_total: 10,
+    criterios: [
+      { codigo: "1.1.1", descripcion: "Responsable del SG-SST", peso: 0.5 },
+      { codigo: "1.1.2", descripcion: "Responsabilidades en el SG-SST", peso: 0.5 },
+      { codigo: "1.1.3", descripcion: "Asignación de recursos para el SG-SST", peso: 0.5 },
+      { codigo: "1.1.4", descripcion: "Afiliación al Sistema General de Riesgos Laborales", peso: 0.5 },
+      { codigo: "1.1.5", descripcion: "Pago de pensión trabajadores alto riesgo", peso: 0.5 },
+      { codigo: "1.1.6", descripcion: "Conformación COPASST / Vigía", peso: 0.5 },
+      { codigo: "1.1.7", descripcion: "Capacitación COPASST / Vigía", peso: 0.5 },
+      { codigo: "1.1.8", descripcion: "Conformación Comité Convivencia Laboral", peso: 0.5 },
+      { codigo: "1.2.1", descripcion: "Programa Capacitación promoción y prevención PYP", peso: 2 },
+      { codigo: "1.2.2", descripcion: "Inducción y Reinducción en SG-SST, activ., peligros y riesgos", peso: 2 },
+      { codigo: "1.2.3", descripcion: "Responsables del SG-SST con curso 50 horas", peso: 2 }
+    ]
+  },
+  "II_PLANEAR_GESTION": {
+    nombre: "Gestión Integral del SG-SST",
+    peso_total: 15,
+    criterios: [
+      { codigo: "2.1.1", descripcion: "Política del SG-SST firmada, fechada y comunicada", peso: 1 },
+      { codigo: "2.2.1", descripcion: "Objetivos definidos, claros, medibles, cuantificables", peso: 1 },
+      { codigo: "2.3.1", descripcion: "Evaluación e identificación de prioridades", peso: 1 },
+      { codigo: "2.4.1", descripcion: "Plan de trabajo anual con objetivos, metas, responsables", peso: 2 },
+      { codigo: "2.5.1", descripcion: "Archivo o retención documental del SG-SST", peso: 2 },
+      { codigo: "2.6.1", descripcion: "Rendición de cuentas", peso: 1 },
+      { codigo: "2.7.1", descripcion: "Matriz legal actualizada", peso: 2 },
+      { codigo: "2.8.1", descripcion: "Mecanismos de comunicación, auto reporte en SG-SST", peso: 1 },
+      { codigo: "2.9.1", descripcion: "Identificación, evaluación, para adquisición de productos y servicios", peso: 1 },
+      { codigo: "2.10.1", descripcion: "Evaluación y selección de proveedores y contratistas", peso: 2 },
+      { codigo: "2.11.1", descripcion: "Evaluación del impacto de cambios internos y externos", peso: 1 }
+    ]
+  },
+  "III_HACER_GESTION_SALUD": {
+    nombre: "Gestión de la Salud",
+    peso_total: 20,
+    criterios: [
+      { codigo: "3.1.1", descripcion: "Evaluación Médica Ocupacional", peso: 1 },
+      { codigo: "3.1.2", descripcion: "Actividades de Promoción y Prevención en Salud", peso: 1 },
+      { codigo: "3.1.3", descripcion: "Información al médico de los perfiles de cargo", peso: 1 },
+      { codigo: "3.1.4", descripcion: "Realización de los exámenes médicos ocupacionales", peso: 1 },
+      { codigo: "3.1.5", descripcion: "Custodia de Historias Clínicas", peso: 1 },
+      { codigo: "3.1.6", descripcion: "Restricciones y recomendaciones médico laborales", peso: 1 },
+      { codigo: "3.1.7", descripcion: "Estilos de vida y entornos saludables", peso: 1 },
+      { codigo: "3.1.8", descripcion: "Agua potable, servicios sanitarios y disposición de basuras", peso: 1 },
+      { codigo: "3.1.9", descripcion: "Eliminación adecuada de residuos sólidos, líquidos o gaseosos", peso: 1 },
+      { codigo: "3.2.1", descripcion: "Reporte de los accidentes de trabajo y enfermedad laboral", peso: 2 },
+      { codigo: "3.2.2", descripcion: "Investigación de Accidentes, Incidentes y Enfermedad Laboral", peso: 2 },
+      { codigo: "3.2.3", descripcion: "Registro y análisis estadístico de Incidentes, AT y EL", peso: 1 },
+      { codigo: "3.3.1", descripcion: "Medición de la severidad de los AT y EL", peso: 1 },
+      { codigo: "3.3.2", descripcion: "Medición de la frecuencia de los IT y EL", peso: 1 },
+      { codigo: "3.3.3", descripcion: "Medición de la mortalidad de AT y EL", peso: 1 },
+      { codigo: "3.3.4", descripcion: "Medición de la prevalencia de incidentes, AT y EL", peso: 1 },
+      { codigo: "3.3.5", descripcion: "Medición de la incidencia de AT y EL", peso: 1 },
+      { codigo: "3.3.6", descripcion: "Medición del ausentismo por incidentes, AT y EL", peso: 1 }
+    ]
+  },
+  "IV_HACER_GESTION_PELIGROS": {
+    nombre: "Gestión de Peligros y Riesgos",
+    peso_total: 30,
+    criterios: [
+      { codigo: "4.1.1", descripcion: "Metodología para la identificación, evaluación y valoración de peligros", peso: 4 },
+      { codigo: "4.1.2", descripcion: "Identificación de peligros con participación de todos los niveles", peso: 4 },
+      { codigo: "4.1.3", descripcion: "Identificación y priorización de la naturaleza de los peligros", peso: 3 },
+      { codigo: "4.1.4", descripcion: "Realización mediciones ambientales, químicos, físicos y biológicos", peso: 4 },
+      { codigo: "4.2.1", descripcion: "Se implementan las medidas de prevención y control", peso: 2.5 },
+      { codigo: "4.2.2", descripcion: "Se verifica aplicación de las medidas de prevención y control", peso: 2.5 },
+      { codigo: "4.2.3", descripcion: "Hay procedimientos, instructivos, fichas técnicas, otros", peso: 2.5 },
+      { codigo: "4.2.4", descripcion: "Inspección con el COPASST o Vigía", peso: 2.5 },
+      { codigo: "4.2.5", descripcion: "Mantenimiento periódico de instalaciones, equipos, máquinas", peso: 2.5 },
+      { codigo: "4.2.6", descripcion: "Entrega de Elementos de Protección Personal EPP", peso: 2.5 }
+    ]
+  },
+  "V_HACER_GESTION_AMENAZAS": {
+    nombre: "Gestión de Amenazas",
+    peso_total: 10,
+    criterios: [
+      { codigo: "5.1.1", descripcion: "Se cuenta con el Plan de Prevención, Preparación y Respuesta", peso: 5 },
+      { codigo: "5.1.2", descripcion: "Brigada de prevención conformada, capacitada y dotada", peso: 5 }
+    ]
+  },
+  "VI_VERIFICAR": {
+    nombre: "Verificación del SG-SST",
+    peso_total: 5,
+    criterios: [
+      { codigo: "6.1.1", descripcion: "Indicadores estructura, proceso y resultado", peso: 1.25 },
+      { codigo: "6.1.2", descripcion: "Las empresa adelanta auditoría por lo menos una vez al año", peso: 1.25 },
+      { codigo: "6.1.3", descripcion: "Revisión anual por la alta dirección", peso: 1.25 },
+      { codigo: "6.1.4", descripcion: "Planificación auditorías con el COPASST", peso: 1.25 }
+    ]
+  },
+  "VII_ACTUAR": {
+    nombre: "Mejoramiento",
+    peso_total: 10,
+    criterios: [
+      { codigo: "7.1.1", descripcion: "Definir acciones de Promoción y Prevención con base en resultados", peso: 2.5 },
+      { codigo: "7.1.2", descripcion: "Toma de medidas correctivas, preventivas y de mejora", peso: 2.5 },
+      { codigo: "7.1.3", descripcion: "Ejecución de acciones preventivas, correctivas y de mejora", peso: 2.5 },
+      { codigo: "7.1.4", descripcion: "Implementar medidas y acciones correctivas autoridades y ARL", peso: 2.5 }
+    ]
+  }
+};
+```
+
+---
+
+## 5. SKILLS ADAPTADAS — PROMPTS COMPLETOS PARA CLAUDE API
+
+### SKILL 1 — EXTRACTOR_MEDICO_SST
+
+**Propósito**: Extraer recomendaciones y restricciones de PDFs de exámenes médicos ocupacionales.
+
+```javascript
+// Llamada Claude API — Módulo 2
+const SYSTEM_EXTRACTOR_MEDICO = `
+Eres un especialista en medicina laboral colombiana. Tu función exclusiva es extraer información estructurada de exámenes médicos ocupacionales emitidos bajo la normativa colombiana (Resolución 2346 de 2007 del MinProtección Social, Decreto 1477 de 2014).
+
+REGLAS DE EXTRACCIÓN:
+1. Extrae ÚNICAMENTE lo que está explícitamente en el documento. No inferir ni completar.
+2. Si un campo no existe en el documento, devuelve null para ese campo.
+3. Las restricciones y recomendaciones van en listas separadas, no mezcladas.
+4. El concepto médico debe ser exactamente uno de: "apto", "apto_con_restricciones", "no_apto", "pendiente".
+5. Si hay ambigüedad en el concepto, clasifica como "apto_con_restricciones" y registra la ambigüedad en observaciones.
+
+RESPONDE ÚNICAMENTE EN JSON VÁLIDO. Sin explicaciones previas ni posteriores.
+
+FORMATO DE RESPUESTA:
+{
+  "concepto": "apto|apto_con_restricciones|no_apto|pendiente",
+  "medico_nombre": "string|null",
+  "medico_tarjeta_profesional": "string|null",
+  "fecha_examen": "YYYY-MM-DD|null",
+  "tipo_examen": "ingreso|periodico|egreso|post_incapacidad|null",
+  "restricciones": [
+    {
+      "tipo": "fisica|ambiental|horaria|otra",
+      "descripcion": "descripción exacta de la restricción",
+      "temporal": true|false,
+      "duracion_dias": null|número
+    }
+  ],
+  "recomendaciones": [
+    {
+      "categoria": "ergonomia|salud_mental|condicion_medica|pausas|otra",
+      "descripcion": "descripción exacta de la recomendación"
+    }
+  ],
+  "diagnosticos_relevantes": ["string"],
+  "observaciones_adicionales": "string|null",
+  "requiere_seguimiento": true|false,
+  "fecha_proximo_examen_sugerida": "YYYY-MM-DD|null"
+}`;
+
+// Función de llamada
+async function extraerExamenMedico(pdfBase64, mediaType = "application/pdf") {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      system: SYSTEM_EXTRACTOR_MEDICO,
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: { type: "base64", media_type: mediaType, data: pdfBase64 }
+          },
+          {
+            type: "text",
+            text: "Extrae toda la información de este examen médico ocupacional y devuelve el JSON estructurado según las instrucciones."
+          }
+        ]
+      }]
+    })
+  });
+  const data = await response.json();
+  const text = data.content[0].text;
+  return JSON.parse(text.replace(/```json|```/g, "").trim());
+}
+```
+
+---
+
+### SKILL 2 — MATRIZ_GTC45_SST
+
+**Propósito**: Generar matriz de peligros pre-llenada desde código CIIU bajo metodología GTC-45.
+
+```javascript
+const SYSTEM_MATRIZ_GTC45 = `
+Eres un profesional en Seguridad y Salud en el Trabajo con más de 10 años de experiencia en identificación de peligros y evaluación de riesgos bajo la metodología GTC-45 (Guía Técnica Colombiana, actualización 2012). Tienes conocimiento profundo de los sectores económicos colombianos y sus actividades según clasificación CIIU Rev. 4 A.C.
+
+TU ROL: Generar la estructura base de una Matriz de Identificación de Peligros, Evaluación y Valoración de Riesgos (IPER) para una empresa según su código CIIU. El consultor ajustará los detalles específicos después; tú provees el 80% del contenido estándar del sector.
+
+METODOLOGÍA GTC-45 — VALORACIÓN:
+- Nivel de Deficiencia (ND): 10=MA, 6=A, 2=M, 1=B
+- Nivel de Exposición (NE): 4=C, 3=FC, 2=EO, 1=EF  
+- Nivel de Probabilidad (NP) = ND × NE → MA+A(24-40)=MA, A(10-20)=A, M(6-8)=M, B(2-4)=B
+- Nivel de Consecuencia (NC): 100=M.grave, 60=grave, 25=moderado, 10=leve
+- Nivel de Riesgo (NR) = NP × NC → I(1000-600), II(500-150), III(120-40), IV(20)
+- Aceptabilidad: I=No aceptable, II=No aceptable (mejora), III=Aceptable (control), IV=Aceptable
+
+CATEGORÍAS DE PELIGRO (GTC-45):
+1. Biológico: bacterias, virus, hongos, parásitos, picaduras, fluidos
+2. Físico: ruido, iluminación, vibraciones, temperatura, radiaciones
+3. Químico: polvos, fibras, líquidos, gases, vapores, humos
+4. Psicosocial: gestión organizacional, características del grupo social, condiciones de tarea, jornada, interfaz persona-tarea
+5. Biomecánico: posturas, esfuerzo, movimiento repetitivo, manipulación manual de cargas
+6. Condiciones de seguridad: mecánico, eléctrico, locativo, tecnológico, accidente de tráfico, público, trabajo en alturas
+7. Fenómenos naturales: sismos, vendavales, inundaciones
+
+FORMATO DE RESPUESTA — JSON VÁLIDO:
+{
+  "ciiu": "string",
+  "actividad_economica": "descripción de la actividad",
+  "nivel_riesgo_arl": "I|II|III|IV|V",
+  "fecha_generacion": "ISO date",
+  "procesos": [
+    {
+      "proceso": "nombre del proceso/área",
+      "actividad": "actividad específica",
+      "tarea": "tarea dentro de la actividad",
+      "peligro": {
+        "categoria": "categoria GTC-45",
+        "subcategoria": "subcategoria",
+        "descripcion": "descripción detallada del peligro"
+      },
+      "efectos": ["posible efecto 1", "posible efecto 2"],
+      "controles_existentes": {
+        "eliminacion": "string|null",
+        "sustitucion": "string|null",
+        "controles_ingenieria": "string|null",
+        "controles_administrativos": "string|null",
+        "epp": "string|null"
+      },
+      "evaluacion": {
+        "nd": 6,
+        "ne": 3,
+        "np": 18,
+        "nivel_np": "A",
+        "nc": 25,
+        "nr": 450,
+        "nivel_nr": "II",
+        "aceptable": false
+      },
+      "medidas_intervencion_sugeridas": ["medida 1", "medida 2"],
+      "responsable": "área sugerida",
+      "criterio_0312": "código del criterio Res. 0312 asociado"
+    }
+  ],
+  "resumen_por_nivel": {
+    "nivel_I": 0,
+    "nivel_II": 0,
+    "nivel_III": 0,
+    "nivel_IV": 0
+  },
+  "recomendaciones_prioritarias": ["string"]
+}
+
+INSTRUCCIÓN FINAL: Genera entre 20-35 registros de peligro típicos para el sector CIIU consultado. Prioriza los peligros más frecuentes y representativos. No inventes peligros que no correspondan a la actividad real.`;
+
+async function generarMatrizCIIU(codigoCIIU, infoAdicional = {}) {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1000,
+      system: SYSTEM_MATRIZ_GTC45,
+      messages: [{
+        role: "user",
+        content: `Genera la matriz de peligros GTC-45 para:
+        
+Código CIIU: ${codigoCIIU}
+Número de trabajadores: ${infoAdicional.num_empleados || 'no especificado'}
+Procesos principales: ${infoAdicional.procesos || 'según actividad típica del sector'}
+Información adicional: ${infoAdicional.descripcion || 'ninguna'}
+
+Devuelve ÚNICAMENTE el JSON estructurado.`
+      }]
+    })
+  });
+  const data = await response.json();
+  const text = data.content[0].text;
+  return JSON.parse(text.replace(/```json|```/g, "").trim());
+}
+```
+
+---
+
+### SKILL 3 — GENERADOR_ACTAS_COMITE
+
+**Propósito**: Generar actas completas de COPASST y Comité de Convivencia desde transcripción.
+
+```javascript
+const SYSTEM_ACTAS_COPASST = `
+Eres un experto en Seguridad y Salud en el Trabajo con conocimiento profundo del funcionamiento de los Comités Paritarios de Seguridad y Salud en el Trabajo (COPASST) bajo la Resolución 2013 de 1986, Decreto 1295 de 1994 y el Decreto 1072 de 2015 (Capítulo 6). También conoces el Comité de Convivencia Laboral bajo la Resolución 652 de 2012 y la Resolución 1356 de 2012.
+
+TU FUNCIÓN: Redactar actas de reunión formales, completas y con validez legal a partir de:
+1. Lista de asistentes (titulares y suplentes que asistieron)
+2. Puntos tratados ingresados por el consultor
+3. Transcripción de audio de la reunión (cuando se provea)
+
+ESTRUCTURA OBLIGATORIA DEL ACTA:
+1. Encabezado (empresa, NIT, tipo de comité, número de acta, fecha, hora inicio-fin, lugar)
+2. Lista de asistentes con firma (tabla con nombre, cargo en comité, tipo T/S, firma)
+3. Orden del día numerado
+4. Desarrollo de la reunión (por punto del orden del día)
+5. Compromisos y responsables (tabla: compromiso, responsable, fecha límite)
+6. Próxima reunión (fecha tentativa)
+7. Cierre y firmas (presidente y secretario)
+
+REGLAS DE REDACCIÓN:
+- Lenguaje formal pero claro, en tercera persona
+- Cada punto desarrollado mínimo 2 párrafos
+- Los compromisos deben ser específicos, con responsable y fecha
+- Citar la normativa aplicable cuando sea pertinente
+- El acta debe poder imprimirse y firmarse directamente
+
+RESPONDE EN JSON:
+{
+  "numero_acta": "string",
+  "tipo_comite": "COPASST|convivencia",
+  "empresa": "string",
+  "nit": "string",
+  "fecha": "YYYY-MM-DD",
+  "hora_inicio": "HH:MM",
+  "hora_fin": "HH:MM",
+  "lugar": "string",
+  "asistentes": [
+    {
+      "nombre": "string",
+      "cargo_empresa": "string",
+      "rol_comite": "string",
+      "tipo": "titular|suplente",
+      "asistio": true
+    }
+  ],
+  "orden_del_dia": ["string"],
+  "desarrollo": [
+    {
+      "punto": 1,
+      "titulo": "string",
+      "contenido": "texto completo del desarrollo del punto"
+    }
+  ],
+  "compromisos": [
+    {
+      "descripcion": "string",
+      "responsable": "string",
+      "fecha_limite": "YYYY-MM-DD",
+      "estado": "pendiente"
+    }
+  ],
+  "proxima_reunion": "YYYY-MM-DD",
+  "observaciones": "string|null",
+  "texto_completo_acta": "texto del acta en formato para imprimir"
+}`;
+```
+
+---
+
+### SKILL 4 — PLAN_EMERGENCIAS_AUDIO
+
+**Propósito**: Transcribir audio por sección y generar análisis de vulnerabilidad para Plan de Emergencias.
+
+```javascript
+// El flujo tiene dos etapas:
+// ETAPA 1: Transcripción (via Whisper/Groq API o Web Speech API en frontend)
+// ETAPA 2: Generación del análisis con Claude
+
+const SYSTEM_PLAN_EMERGENCIAS = `
+Eres un experto en Gestión del Riesgo de Desastres y Planes de Emergencia bajo la normativa colombiana:
+- Decreto 1072 de 2015, Art. 2.2.4.6.25 (Plan de Prevención, Preparación y Respuesta ante Emergencias)
+- Resolución 0312 de 2019, Criterio 5.1.1
+- NTC 1700 de 2004 (Medidas de seguridad en edificaciones)
+- Decreto 2157 de 2017 (Planes de Gestión del Riesgo de Desastres de Entidades)
+
+TU FUNCIÓN: Analizar las transcripciones de audio del consultor (organizadas por sección) y generar el Plan de Prevención, Preparación y Respuesta ante Emergencias en formato estructurado y editable.
+
+SECCIONES DEL AUDIO:
+1. AMENAZAS IDENTIFICADAS: Qué amenazas encontró el consultor en la visita
+2. RECURSOS DISPONIBLES: Equipos, personas, sistemas con los que cuenta la empresa
+3. VULNERABILIDADES: Debilidades del sistema actual
+4. ESTRUCTURA DE RESPUESTA: Brigadas, roles, cadena de mando
+5. INVENTARIO DE EQUIPOS: Extintores, camillas, botiquines, etc.
+
+ANÁLISIS DE VULNERABILIDAD (metodología UNGRD Colombia):
+Para cada amenaza identificada, evalúa en 3 dimensiones:
+- Exposición (E): ¿Está la empresa en zona de amenaza? 0=No, 1=Sí
+- Fragilidad (F): ¿Qué tan susceptible es a daño? 1=Baja, 2=Media, 3=Alta  
+- Falta de Resiliencia (R): ¿Qué capacidad de recuperación tiene? 1=Alta, 2=Media, 3=Baja
+- Vulnerabilidad Total: (E+F+R)/7 → Baja(<0.4), Media(0.4-0.7), Alta(>0.7)
+
+RESPONDE EN JSON ESTRUCTURADO para el documento completo.`;
+
+// Sistema de audio por secciones — el frontend pregunta sección a sección
+const SECCIONES_AUDIO = [
+  {
+    id: "amenazas",
+    titulo: "1. Amenazas Identificadas",
+    instruccion: "Graba describiendo todas las amenazas que identificaste durante la visita: incendios, sismos, inundaciones, explosiones, amenazas externas, etc. Incluye la ubicación de la empresa y su entorno.",
+    duracion_min: 60 // segundos mínimos
+  },
+  {
+    id: "recursos",
+    titulo: "2. Recursos Disponibles",
+    instruccion: "Graba describiendo los recursos con los que cuenta la empresa: equipos contraincendios, señalización, rutas de evacuación, área de reunión, personal capacitado, sistemas de alarma.",
+    duracion_min: 60
+  },
+  {
+    id: "vulnerabilidades",
+    titulo: "3. Vulnerabilidades",
+    instruccion: "Graba describiendo las debilidades que identificaste: falta de señalización, equipos vencidos, personal sin capacitación, accesos bloqueados, materiales inflamables expuestos.",
+    duracion_min: 60
+  },
+  {
+    id: "estructura_respuesta",
+    titulo: "4. Estructura de Respuesta",
+    instruccion: "Graba describiendo la brigada de emergencias: roles asignados (coordinador, brigadistas de primeros auxilios, evacuación, contraincendios), cadena de comunicación y números de emergencia.",
+    duracion_min: 60
+  },
+  {
+    id: "inventario",
+    titulo: "5. Inventario de Equipos de Emergencia",
+    instruccion: "Graba el inventario completo: extintores (tipo, capacidad, ubicación, fecha vencimiento), camillas, botiquines, desfibriladores, detectores de humo, gabinetes contra incendio.",
+    duracion_min: 60
+  }
+];
+```
+
+---
+
+### SKILL 5 — CONSULTOR_SST (adaptado de PESV)
+
+```javascript
+const SYSTEM_CONSULTOR_SST = `
+Eres un Consultor Técnico Senior en Seguridad y Salud en el Trabajo (SG-SST) con 15 años de experiencia en implementación del sistema para empresas colombianas de todos los sectores económicos. Tu conocimiento especializado incluye:
+
+MARCO NORMATIVO VINCULANTE (citas obligatorias en todos los entregables):
+- Decreto 1072 de 2015 – Decreto Único Reglamentario Sector Trabajo (Cap. 6: SG-SST)
+- Resolución 0312 de 2019 – Estándares Mínimos del SG-SST
+- Ley 1562 de 2012 – Sistema General de Riesgos Laborales
+- Resolución 2346 de 2007 – Evaluaciones Médicas Ocupacionales
+- Resolución 2013 de 1986 y Decreto 1295 de 1994 – COPASST
+- Resolución 652 de 2012 y 1356 de 2012 – Comité de Convivencia
+- GTC-45 (2012) – Identificación de Peligros y Valoración de Riesgos
+- Decreto 1477 de 2014 – Tabla de Enfermedades Laborales
+- Resolución 0256 de 2014 – Sistema de Gestión de la Seguridad y Salud (complementaria)
+- Circular 0034 de 2026 – Lineamientos SST MinTrabajo
+
+TUS CAPACIDADES:
+1. Diagnóstico de brechas SG-SST (Res. 0312)
+2. Generación de matrices de peligros GTC-45 por sector CIIU
+3. Elaboración de programas de vigilancia epidemiológica
+4. Diseño de planes de capacitación SST
+5. Interpretación técnica de requisitos normativos
+6. Elaboración de procedimientos e instructivos SST
+
+RESTRICCIONES:
+- No tomas decisiones sin instrucción del consultor líder
+- Todo documento va marcado como [BORRADOR - PARA REVISIÓN]
+- No emites conceptos jurídicos; escala a @abogado
+- No certificas cumplimiento ante autoridades
+- Trabajas ÚNICAMENTE con normativa colombiana vigente
+- Conocimiento con corte a mayo 2026
+
+FORMATO: Español colombiano técnico. Citas normativas: [Norma] Art. [N°] — [contenido].`;
+```
+
+---
+
+### SKILL 6 — EXTRACTOR_PILA
+
+```javascript
+const SYSTEM_EXTRACTOR_PILA = `
+Eres un experto en liquidación de aportes al Sistema de Seguridad Social en Colombia. Tu función es extraer información estructurada de planillas PILA (Planilla Integrada de Liquidación de Aportes).
+
+INFORMACIÓN A EXTRAER de la planilla PILA:
+1. Datos del aportante (NIT, razón social, período)
+2. Número total de afiliados (salud, pensión, riesgos laborales)
+3. Total de aportes liquidados por subsistema
+4. Estado de pago (pagada/pendiente)
+5. Período de liquidación
+6. Fecha de pago si aparece
+7. Clase de riesgo ARL reportada
+8. Si hay trabajadores con novedad (ingreso/retiro/vacaciones)
+
+VALIDACIONES A REPORTAR:
+- ¿Coincide el número de empleados con el registrado?
+- ¿El período corresponde al mes solicitado?
+- ¿Hay discrepancias en la clase de riesgo?
+
+RESPONDE EN JSON VÁLIDO:
+{
+  "nit_aportante": "string",
+  "razon_social": "string",
+  "periodo": "YYYY-MM",
+  "fecha_pago": "YYYY-MM-DD|null",
+  "estado": "pagada|pendiente|parcial",
+  "num_afiliados_salud": number,
+  "num_afiliados_pension": number,
+  "num_afiliados_arl": number,
+  "clase_riesgo_arl": "I|II|III|IV|V",
+  "total_aporte_salud": number,
+  "total_aporte_pension": number,
+  "total_aporte_arl": number,
+  "total_general": number,
+  "novedades": ["string"],
+  "alertas_validacion": ["string"],
+  "observaciones": "string|null"
+}`;
+```
+
+---
+
+## 6. FLUJOS N8N — ESTRUCTURA POR MÓDULO
+
+### Módulo 1 — Gestión PILA (n8n workflow)
+
+```
+Trigger: Schedule (día 1 de cada mes, 8AM)
+  → Query Supabase: empresas activas
+  → Loop por empresa:
+      → Crear registro PILA en Supabase (estado: 'pendiente')
+      → Gmail: enviar solicitud PILA (plantilla personalizada)
+      → Actualizar estado: 'solicitado'
+  
+Trigger: Schedule (día 5, 10, 15 de cada mes)
+  → Query Supabase: PILA pendientes/solicitadas del mes actual
+  → Loop por empresa pendiente:
+      → Si intentos < 3: enviar recordatorio (Gmail o WhatsApp)
+      → Si intentos >= 3: crear alerta en dashboard
+
+Trigger: Gmail — nuevo correo con adjunto
+  → Filtrar: ¿Es respuesta PILA? (subject contains "PILA" o adjunto PDF)
+  → Identificar empresa (por email remitente → Supabase)
+  → Claude API: extraer datos PILA del PDF
+  → Subir a Google Drive: /Regis/[empresa]/PILA/[periodo].pdf
+  → Actualizar Supabase: estado='archivado', drive_file_id
+  → Actualizar cumplimiento: criterio 1.1.4 ✓
+  → Notificar consultor asignado
+```
+
+### Módulo 2 — Exámenes Médicos (n8n workflow)
+
+```
+Trigger: Gmail — correo con adjunto PDF (filtro: "examen medico" OR "concepto medico")
+  → Identificar empresa y trabajador (por email, asunto o metadata)
+  → Google Drive: subir PDF original a /[empresa]/Examenes/
+  → Claude API (SKILL EXTRACTOR_MEDICO): extraer JSON
+  → Supabase: crear/actualizar registro examenes_medicos
+  → IF concepto = 'apto_con_restricciones':
+      → Notificar a HR de la empresa (email template con restricciones)
+      → Crear tarea de seguimiento
+  → IF email_trabajador existe:
+      → Enviar correo al trabajador: "Tu examen médico fue recibido. 
+        Concepto: [concepto]. Por favor confirma recibido respondiendo este correo."
+      → Registrar envío en Supabase
+  → Trigger 2: Gmail — respuesta del trabajador
+      → Actualizar: email_confirmacion_recibido = true
+  → Actualizar cumplimiento: criterio 3.1.4 ✓
+```
+
+### Módulo 3 — Matriz CIIU (n8n workflow + API endpoint)
+
+```
+Trigger: Webhook POST /api/matriz/generar
+  Body: { empresa_id, ciiu, num_empleados, procesos_adicionales }
+  
+  → Query Supabase: datos empresa
+  → Query Supabase/CIIU: descripción actividad económica
+  → Claude API (SKILL MATRIZ_GTC45): generar JSON matriz
+  → Guardar en Supabase: matrices_riesgo (estado: 'borrador')
+  → Generar Excel/Word desde JSON (usando ExcelJS/docx library en Code node)
+  → Subir a Drive: /[empresa]/Matrices/Matriz_GTC45_[fecha]_borrador.xlsx
+  → Responder webhook con: { matriz_id, drive_url, resumen_niveles }
+  → Notificar consultor con link de revisión
+
+Trigger: Webhook POST /api/matriz/aprobar-arl
+  Body: { matriz_id, file_base64 }
+  → Subir archivo ARL a Drive
+  → Actualizar estado: 'aprobado_arl'
+  → Actualizar cumplimiento: criterio 4.1.1, 4.1.2 ✓
+```
+
+### Módulo 4 — Actas Comités (n8n workflow)
+
+```
+Trigger: Webhook POST /api/acta/generar
+  Body: { empresa_id, tipo_comite, fecha, puntos_tratados, transcripcion_audio, asistentes_ids }
+  
+  → Query Supabase: comité activo de la empresa
+  → Query Supabase: miembros vigentes del comité
+  → Claude API (SKILL ACTAS): generar acta JSON + texto completo
+  → Guardar en Supabase: actas_comite
+  → Generar Word desde texto completo
+  → Subir a Drive: /[empresa]/Actas/[tipo]/Acta_[numero]_[fecha].docx
+  → Generar link único de asistencia digital: /asistencia/[acta_id]
+  → Enviar email a cada miembro con link de confirmación de asistencia
+  → Trigger 2: GET /asistencia/[acta_id]?miembro_id=[id]
+      → Registrar timestamp de confirmación en Supabase
+      → Actualizar campo asistentes_confirmados del acta
+  → Actualizar cumplimiento: criterio 1.1.6, 1.1.7 ✓
+```
+
+### Módulo 5 — Plan Emergencias Audio (n8n workflow)
+
+```
+Trigger: Webhook POST /api/emergencias/audio
+  Body: { empresa_id, seccion, audio_base64, formato }
+  
+  → Transcribir audio (Groq Whisper API o AssemblyAI via HTTP node)
+  → Guardar transcripción en Supabase por sección
+  → Verificar si todas las 5 secciones están completas:
+    → SI: Claude API (SKILL PLAN_EMERGENCIAS): generar plan completo
+          → Guardar en Supabase: planes_emergencia
+          → Generar Word del plan
+          → Subir a Drive: /[empresa]/Planes/Plan_Emergencias_[fecha].docx
+          → Actualizar cumplimiento: criterio 5.1.1 ✓
+    → NO: Notificar qué secciones faltan + instrucciones de grabación
+```
+
+### Módulo 6 — Dashboard (n8n + Supabase RLS)
+
+```
+// El dashboard se construye en React con Supabase client directo
+// n8n solo maneja el recálculo periódico del puntaje
+
+Trigger: Schedule (cada hora) O Trigger: Webhook (cuando se sube documento)
+  → Para cada empresa activa:
+    → Query documentos_cumplimiento
+    → Calcular puntaje por estándar (suma de pesos donde estado='cumple')
+    → Calcular puntaje total sobre 100
+    → Upsert en Supabase: tabla resumen_cumplimiento
+    
+// Endpoint especial para la vista cliente (JWT con RLS Supabase)
+// El cliente solo ve su empresa gracias a Row Level Security
+```
+
+---
+
+## 7. SPRINT PLAN — EJECUCIÓN EN REPLIT
+
+### FASE 1: Setup base (Hoy — 3 mayo, objetivo: 4 horas)
+
+**Paso 1.1 — Crear proyecto Replit**
+```bash
+# En Replit, crear nuevo proyecto Node.js
+# Instalar dependencias
+npm install express cors dotenv @supabase/supabase-js
+npm install react react-dom vite @vitejs/plugin-react
+npm install tailwindcss @headlessui/react recharts
+npm install docx exceljs multer
+```
+
+**Paso 1.2 — Variables de entorno en Replit**
+```
+ANTHROPIC_API_KEY=tu_api_key
+SUPABASE_URL=tu_supabase_url  
+SUPABASE_ANON_KEY=tu_anon_key
+SUPABASE_SERVICE_KEY=tu_service_key
+GOOGLE_DRIVE_FOLDER_REGIS=id_carpeta_raiz
+N8N_WEBHOOK_SECRET=tu_secreto
+```
+
+**Paso 1.3 — Ejecutar SQL en Supabase**
+→ Copiar y ejecutar todo el SQL de la Sección 3 de este documento
+→ Configurar Row Level Security (RLS) para vista cliente
+
+**Paso 1.4 — Poblar datos de prueba**
+```sql
+-- Empresa de prueba
+INSERT INTO empresas (nombre, nit, codigo_ciiu, num_empleados, tamano, contacto_email)
+VALUES ('Empresa Demo SAS', '900123456-1', '4711', 45, 'pequeña', 'demo@empresa.com');
+
+-- Insertar criterios Res. 0312 para esa empresa (todos en 'no_cumple' inicialmente)
+-- Script de seed completo en /scripts/seed_cumplimiento.sql
+```
+
+### FASE 2: Dashboard funcional (Hoy — 6-8 horas)
+
+El dashboard es la pieza más importante para la demo. Debe mostrar:
+- Porcentaje global de cumplimiento (gauge/donut chart)
+- Breakdown por los 7 estándares (barras)
+- Lista de documentos faltantes
+- Vista admin (todas las empresas) vs vista cliente (solo la suya)
+
+**Prompt para Claude Code — Dashboard React:**
+
+```
+Crea un dashboard SG-SST profesional en React con estas especificaciones:
+
+STACK: React + Vite + TailwindCSS + Recharts + Supabase JS client
+
+VISTAS:
+1. Login simple (email/password via Supabase Auth)
+2. Vista Admin: tabla de todas las empresas con % cumplimiento, semáforo verde/amarillo/rojo
+3. Vista Empresa: detalle de una empresa con todos los estándares y criterios
+
+DATOS desde Supabase:
+- tabla: documentos_cumplimiento (empresa_id, estandar, criterio_codigo, peso_porcentual, estado)
+- tabla: empresas (id, nombre, nit, tamano, num_empleados)
+
+CÁLCULO DE PUNTAJE:
+- % por estándar = suma(peso donde estado='cumple') / suma(peso total del estándar) × peso_estándar
+- % total = suma de todos los % por estándar
+
+COMPONENTES:
+- GaugeChart: círculo con % (verde >85%, amarillo 60-85%, rojo <60%)
+- StandardCard: card por estándar con mini-barra de progreso
+- CriterioRow: fila por criterio con ícono estado, descripción, acción rápida "subir evidencia"
+- EmpresaTable: tabla admin con sort por % cumplimiento
+
+DISEÑO: Profesional, paleta verde corporativo (#1a7a4a), gris oscuro (#1e2329). 
+Fuente: IBM Plex Sans. Cards con sombra sutil. Sin colores genéricos de AI.
+```
+
+### FASE 3: Módulo 2 — Exámenes médicos (Hoy — 2-3 horas)
+
+**Prompt para Claude Code — Módulo extractor PDF:**
+
+```
+Crea un endpoint Express y componente React para procesar exámenes médicos ocupacionales:
+
+BACKEND (server.js):
+POST /api/examenes/procesar
+- Recibe: multipart/form-data con PDF + empresa_id + trabajador_id (opcional)
+- Si trabajador_id null: crear trabajador básico primero
+- Convierte PDF a base64
+- Llama Claude API con SYSTEM_EXTRACTOR_MEDICO (string ya definida en /skills/extractor_medico.js)
+- Guarda resultado en Supabase tabla examenes_medicos
+- Sube PDF a Google Drive (usa googleapis npm)
+- Si concepto = 'apto_con_restricciones': marca para notificación
+- Retorna: { examen_id, concepto, restricciones, recomendaciones, drive_url }
+
+FRONTEND (ExamenUpload.jsx):
+- Drag & drop de PDF
+- Campo para buscar/crear trabajador (autocomplete desde Supabase)
+- Al procesar: mostrar resultado con badges de color por concepto
+- Mostrar restricciones y recomendaciones extraídas
+- Botón "Enviar confirmación al trabajador" (si tiene email)
+- Botón "Ver en Drive"
+```
+
+### FASE 4: Módulo 3 — Matriz CIIU (Mañana — 2 horas)
+
+```
+Crea endpoint y UI para generación de matriz de peligros:
+
+BACKEND:
+POST /api/matriz/generar
+- Input: { empresa_id, ciiu, info_adicional }
+- Claude API call con SYSTEM_MATRIZ_GTC45
+- Guardar en matrices_riesgo (Supabase)
+- Generar Excel usando ExcelJS con formato GTC-45 real
+- Subir a Drive
+- Retornar { matriz_id, num_peligros, niveles_riesgo, excel_url }
+
+FRONTEND (MatrizGenerador.jsx):
+- Input CIIU con autocomplete (query tabla ciiu en Supabase)
+- Mostrar descripción de la actividad económica al seleccionar
+- Formulario: num_empleados, procesos principales (chips)
+- Botón "Generar Matriz" con loading
+- Preview de los peligros generados (tabla paginada)
+- Botón "Descargar Excel" y "Ver borrador en Drive"
+- Sección "Subir versión aprobada ARL" (drag & drop)
+```
+
+### FASE 5: n8n — Workflow PILA automático (Mañana — 2 horas)
+
+En Claude Code con el CLAUDE_n8n.md cargado:
+
+```
+Crea un workflow n8n para gestión automática de planillas PILA con estas especificaciones:
+
+WORKFLOW 1: "SG-SST - Solicitud Mensual PILA"
+- Trigger: Schedule, día 1 de cada mes a 8:00 AM
+- Node Supabase: SELECT * FROM empresas WHERE activa = true
+- Loop: por empresa
+  - Node Supabase: INSERT INTO registros_pila (empresa_id, periodo, estado='pendiente')
+  - Node Gmail: enviar email "Solicitud PILA [MES] - [EMPRESA]"
+    Template: "Estimados, por favor enviar la planilla PILA del mes [X] a más tardar el día [X+10]."
+  - Node Supabase: UPDATE registros_pila SET estado='solicitado', fecha_solicitud=now()
+
+WORKFLOW 2: "SG-SST - Recordatorio PILA"
+- Trigger: Schedule, días 5 y 10 de cada mes
+- Node Supabase: SELECT PILA donde estado != 'archivado' AND periodo = mes_actual
+- Loop recordatorio con Gmail
+
+WORKFLOW 3: "SG-SST - Recepción PILA"
+- Trigger: Gmail (IMAP polling cada 15 min, filtro: has attachment + asunto contiene "PILA")
+- Extraer empresa desde email remitente → Supabase
+- HTTP Request: POST /api/pila/procesar (backend Replit)
+- Supabase: UPDATE estado='archivado'
+- Supabase: UPDATE cumplimiento criterio 1.1.4
+
+Conecta n8n.disier.net. Valida y prueba cada workflow hasta ejecución exitosa.
+```
+
+---
+
+## 8. INSTRUCCIONES DE SETUP CIIU EN SUPABASE
+
+La tabla CIIU necesita datos reales del DANE. Proceso:
+
+```python
+# Script para poblar tabla CIIU desde fuente oficial DANE
+# URL fuente: https://www.dane.gov.co/files/nomenclaturas/ciiu/CIIU_Rev4AC_2012.xlsx
+# Ejecutar en Replit como script de seed
+
+import pandas as pd
+from supabase import create_client
+
+CIIU_URL = "https://www.dane.gov.co/files/nomenclaturas/ciiu/CIIU_Rev4AC_2012.xlsx"
+df = pd.read_excel(CIIU_URL, sheet_name="Actividades")
+
+# Transformar y cargar en Supabase
+# Las columnas de riesgos típicos se poblan con Claude API por lotes
+# después de la carga inicial
+
+# Alternativa: usar la API del RUES/DIAN para validación de CIIU por NIT
+# https://www.rues.org.co/api/ciiu/{codigo}
+```
+
+**Fuentes gubernamentales a integrar:**
+- **CIIU**: `https://www.dane.gov.co` — tabla clasificación CIIU Rev. 4
+- **Tamaño empresa (MIPYMES)**: Ley 590 de 2000, art. 2 — según activos o empleados. API de validación disponible en `https://api.datos.gov.co/v1/datasets` (Datos Abiertos Colombia)
+- **Validación NIT/empresa**: RUES — `https://www.rues.org.co` (consulta pública)
+- **Clase de riesgo ARL**: No hay API oficial; usar tabla estática según CIIU + Decreto 1607 de 2002
+
+---
+
+## 9. PROMPTS PARA CLAUDE CODE — SETUP INICIAL COMPLETO
+
+Este es el prompt maestro para arrancar el proyecto desde cero en Claude Code:
+
+```
+Voy a construir una plataforma de automatización SG-SST en Replit. Inicia el proyecto con este setup:
+
+ESTRUCTURA DEL PROYECTO:
+/
+├── server.js              # Express backend
+├── /src                   # React frontend
+│   ├── App.jsx
+│   ├── /pages
+│   │   ├── Dashboard.jsx
+│   │   ├── Examenes.jsx
+│   │   ├── Matrices.jsx
+│   │   ├── Actas.jsx
+│   │   ├── Emergencias.jsx
+│   │   └── Pila.jsx
+│   ├── /components
+│   │   ├── GaugeChart.jsx
+│   │   ├── EmpresaSelector.jsx
+│   │   └── FileUpload.jsx
+│   └── /lib
+│       ├── supabase.js
+│       └── api.js
+├── /skills
+│   ├── extractor_medico.js
+│   ├── matriz_gtc45.js
+│   ├── generador_actas.js
+│   └── plan_emergencias.js
+├── /scripts
+│   └── seed_cumplimiento.sql
+├── package.json
+└── vite.config.js
+
+DEPENDENCIAS:
+"express", "cors", "dotenv", "@supabase/supabase-js", "multer", "docx", "exceljs",
+"react", "react-dom", "react-router-dom", "recharts", "tailwindcss", "@vitejs/plugin-react"
+
+El server.js debe servir la React app en producción y exponer /api/* endpoints.
+Configura vite para proxy de /api al backend en desarrollo.
+
+Variables de entorno: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY
+
+[Después de crear la estructura, continúa con el Dashboard primero]
+```
+
+---
+
+## 10. CHECKLIST DEMO 4 DE MAYO
+
+### Lo que DEBE estar funcionando mañana:
+
+- [ ] Replit corriendo con frontend visible en URL pública
+- [ ] Supabase con tablas creadas y datos de 1 empresa real de prueba
+- [ ] **Dashboard**: mostrar % cumplimiento de la empresa de prueba (aunque sea con datos manuales iniciales)
+- [ ] **Módulo 2**: subir un PDF de examen médico → ver extracción automática en pantalla
+- [ ] **Módulo 3**: ingresar CIIU 4711 (comercio) → descargar Excel de matriz generada
+- [ ] Los 3 módulos anteriores deben estar disponibles en la URL pública de Replit
+
+### Para la presentación verbal:
+- Mostrar arquitectura (usar diagrama de Sección 1)
+- Demo en vivo de los 3 módulos funcionando
+- Mostrar el schema de Supabase con datos reales
+- Mencionar módulos 1, 4, 5 como "en integración"
+- Mostrar el workflow n8n de PILA aunque sea en estructura (no necesita correr en demo)
+
+---
+
+## 11. CONFIGURACIÓN SUPABASE RLS — VISTA CLIENTE
+
+```sql
+-- Habilitar RLS en todas las tablas
+ALTER TABLE empresas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documentos_cumplimiento ENABLE ROW LEVEL SECURITY;
+ALTER TABLE examenes_medicos ENABLE ROW LEVEL SECURITY;
+
+-- Tabla de usuarios-empresa (relaciona auth.users con empresa)
+CREATE TABLE usuario_empresa (
+  user_id UUID REFERENCES auth.users(id),
+  empresa_id UUID REFERENCES empresas(id),
+  rol TEXT CHECK (rol IN ('admin','cliente','consultor')),
+  PRIMARY KEY (user_id, empresa_id)
+);
+
+-- Policy: Admin ve todo
+CREATE POLICY "admin_all" ON empresas
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM usuario_empresa 
+    WHERE user_id = auth.uid() AND rol = 'admin')
+  );
+
+-- Policy: Cliente solo ve su empresa
+CREATE POLICY "cliente_propia_empresa" ON empresas
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM usuario_empresa 
+    WHERE user_id = auth.uid() AND empresa_id = empresas.id)
+  );
+
+-- Aplicar misma lógica a documentos_cumplimiento
+CREATE POLICY "cliente_propia_cumplimiento" ON documentos_cumplimiento
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM usuario_empresa 
+    WHERE user_id = auth.uid() AND empresa_id = documentos_cumplimiento.empresa_id)
+  );
+```
+
+---
+
+## 12. REFERENCIAS NORMATIVAS CLAVE
+
+**Para el motor de cumplimiento:**
+- Resolución 0312 de 2019 — Tabla de valores artículo 16 (empresas >50 trabajadores)
+- Decreto 1072 de 2015 Art. 2.2.4.6.8 — Obligaciones del empleador
+
+**Para la validación de tamaño empresa (Colombia):**
+- Ley 905 de 2004 (modifica Ley 590/2000): Micro (≤10 trabajadores o activos ≤500 SMMLV), Pequeña (11-50 trab.), Mediana (51-200 trab.), Grande (>200 trab.)
+- Para SST: el tamaño determina el nivel de estándares aplicables (básico/estándar/avanzado)
+
+**Para PILA:**
+- Decreto 1990 de 2016 — Sistema PILA obligatorio
+- Formulario único disponible en: operadores PILA (Aportes en Línea, SOI, Mi Planilla)
+- No hay API pública de los operadores; la integración es vía recepción de PDF/correo
+
+---
+
+*Documento generado: 3 de mayo de 2026 | Versión 1.0*
+*Próxima actualización: tras demo del 4 de mayo*
