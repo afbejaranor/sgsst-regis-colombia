@@ -6,6 +6,7 @@ import Matrices from "./pages/Matrices";
 import Actas from "./pages/Actas";
 import Pila from "./pages/Pila";
 import Comites from "./pages/Comites";
+import PlanAccion from "./pages/PlanAccion";
 
 export function AppRouter() {
   return (
@@ -18,6 +19,7 @@ export function AppRouter() {
       <Route path="/empresa/:id/actas" component={Actas} />
       <Route path="/empresa/:id/pila" component={Pila} />
       <Route path="/empresa/:id/comites" component={Comites} />
+      <Route path="/empresa/:id/plan" component={PlanAccion} />
       <Route>
         <div className="flex h-full items-center justify-center">
           <div className="text-center">

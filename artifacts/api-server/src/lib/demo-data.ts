@@ -194,8 +194,8 @@ const states2: Estado[] = [
   "cumple", "en_proceso", "no_cumple", "no_cumple",
 ];
 
-// Empresa 3: Clínica Santa Lucía — ~88% (Aceptable)
-// Clínica: excelente en salud, buena gestión, algunas brechas en métricas
+// Empresa 3: Clínica Santa Lucía — ~95.5% (Aceptable)
+// Clínica: excelente en salud y gestión, brecha solo en indicadores estadísticos y mejoramiento ARL
 const states3: Estado[] = [
   // I. Recursos (0-10) — todo cumple
   "cumple", "cumple", "cumple", "cumple", "cumple", "cumple", "cumple", "cumple",
@@ -207,14 +207,14 @@ const states3: Estado[] = [
   "cumple", "cumple", "cumple", "cumple", "cumple",
   "cumple", "cumple", "cumple", "cumple",
   "cumple", "cumple", "cumple",
-  "cumple", "cumple", "en_proceso", "en_proceso", "en_proceso", "en_proceso",
+  "cumple", "cumple", "en_proceso", "en_proceso", "cumple", "cumple",
   // IV. Gestión de Peligros y Riesgos (40-49)
-  "cumple", "en_proceso", "cumple", "cumple",
+  "cumple", "cumple", "cumple", "cumple",
   "cumple", "cumple", "cumple", "cumple", "cumple", "cumple",
   // V. Gestión de Amenazas (50-51)
   "cumple", "cumple",
   // VI. Verificación (52-55)
-  "cumple", "cumple", "cumple", "en_proceso",
+  "cumple", "cumple", "cumple", "cumple",
   // VII. Mejoramiento (56-59)
   "cumple", "cumple", "cumple", "en_proceso",
 ];

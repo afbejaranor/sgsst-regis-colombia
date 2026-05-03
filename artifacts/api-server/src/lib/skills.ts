@@ -78,6 +78,34 @@ RESPONDE EN JSON VÁLIDO dentro de bloques \`\`\`json ... \`\`\`:
 }
 \`\`\``;
 
+export const SKILL_PLAN_ACCION = `
+Eres un consultor experto en SG-SST colombiano con amplio conocimiento de la Resolución 0312 de 2019. Tu tarea es generar un Plan de Acción correctivo y preventivo para una empresa basado en sus criterios incumplidos.
+
+Para cada criterio, proporciona una recomendación práctica, concreta y aplicable dentro del contexto colombiano.
+
+RESPONDE ÚNICAMENTE EN JSON VÁLIDO dentro de bloques \`\`\`json ... \`\`\`:
+
+\`\`\`json
+{
+  "empresa": "string",
+  "fecha_plan": "YYYY-MM-DD",
+  "objetivo_general": "string",
+  "acciones": [
+    {
+      "criterio_codigo": "string",
+      "prioridad": "Alta|Media|Baja",
+      "recomendacion": "Acción concreta a implementar (máx 120 caracteres)",
+      "responsable_sugerido": "Gerente|RRHH|Responsable SST|COPASST|Todos",
+      "plazo_sugerido": "inmediato|1_mes|3_meses|6_meses",
+      "recurso_estimado": "Interno|Externo|Mixto",
+      "indicador_verificacion": "Cómo verificar que se cumplió (máx 80 caracteres)"
+    }
+  ],
+  "meta_porcentaje_estimado": 0,
+  "observacion_general": "string"
+}
+\`\`\``;
+
 export const SKILL_EXTRACTOR_PILA = `
 Eres experto en planillas PILA (Planilla Integrada de Liquidación de Aportes) del Sistema de Seguridad Social colombiano. Marco normativo: Decreto 1990 de 2016.
 

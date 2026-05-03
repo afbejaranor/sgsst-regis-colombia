@@ -9,6 +9,7 @@ import matricesRouter from "./matrices";
 import actasRouter from "./actas";
 import pilaRouter from "./pila";
 import comitesRouter from "./comites";
+import planAccionRouter from "./plan-accion";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/matrices", matricesRouter);
 router.use("/actas", actasRouter);
 router.use("/pila", pilaRouter);
 router.use("/comites", comitesRouter);
+router.use("/plan-accion", planAccionRouter);
 
 export default router;

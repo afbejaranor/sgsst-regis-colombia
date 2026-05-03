@@ -1,11 +1,12 @@
 import { Link, useLocation, useRoute } from "wouter";
-import { LayoutDashboard, Building2, Stethoscope, ShieldAlert, FileText, FileSpreadsheet, Users, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Building2, Stethoscope, ShieldAlert, FileText, FileSpreadsheet, Users, ChevronDown, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useListEmpresas } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 
 const MODULE_ITEMS = [
   { name: "Resumen Empresa", path: "", icon: Building2 },
+  { name: "Plan de Acción", path: "/plan", icon: ClipboardList },
   { name: "Exámenes Médicos", path: "/examenes", icon: Stethoscope },
   { name: "Matriz de Riesgos", path: "/matrices", icon: ShieldAlert },
   { name: "Actas de Comité", path: "/actas", icon: FileText },
