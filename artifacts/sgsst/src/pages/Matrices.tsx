@@ -16,9 +16,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldAlert, Sparkles, AlertTriangle } from "lucide-react";
+import { ShieldAlert, Sparkles, AlertTriangle, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { CompanyPageHeader } from "@/components/CompanyPageHeader";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
@@ -62,10 +63,18 @@ export default function Matrices() {
 
   useEffect(() => {
     if (empresa) {
+      const ciiu = empresa.codigo_ciiu ?? "";
+      const procesos = ciiu === "4711"
+        ? "Ventas al detal, bodegaje, atención al cliente, caja, inventarios"
+        : ciiu === "4111"
+          ? "Obras civiles, excavaciones, trabajo en alturas, soldadura, encofrados"
+          : ciiu === "8610"
+            ? "Atención médica, cirugías, laboratorio clínico, urgencias, esterilización"
+            : "";
       reset({
-        ciiu: empresa.codigo_ciiu ?? "",
+        ciiu,
         num_empleados: empresa.num_empleados ? String(empresa.num_empleados) : "",
-        procesos: "",
+        procesos,
         descripcion: "",
       });
     }
@@ -93,12 +102,30 @@ export default function Matrices() {
     );
   }
 
+  function handleDownload() {
+    if (!lastResult) return;
+    const content = `MATRIZ DE PELIGROS Y RIESGOS - GTC-45\n` +
+      `Empresa: ${empresa?.nombre ?? ""}\nNIT: ${empresa?.nit ?? ""}\n` +
+      `CIIU: ${lastResult.ciiu}\nActividad: ${lastResult.actividad_economica}\n\n` +
+      `Generado: ${new Date().toLocaleDateString("es-CO")}\n\n` +
+      `[Exportación simulada - integre con librería de documentos para .docx real]`;
+    const blob = new Blob([content], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Matriz_GTC45_${empresa?.nombre?.replace(/\s/g, "_") ?? "empresa"}_${new Date().toISOString().split("T")[0]}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Matriz de Peligros y Riesgos</h1>
-        <p className="text-sm text-muted-foreground mt-1">GTC-45 · Generación con IA por código CIIU</p>
-      </div>
+      <CompanyPageHeader
+        empresaId={empresaId}
+        titulo="Matriz de Peligros y Riesgos"
+        subtitulo="GTC-45 · Generación con IA por código CIIU"
+        driveModule="matrices"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
@@ -107,34 +134,39 @@ export default function Matrices() {
               <ShieldAlert className="h-5 w-5 text-primary" />
               Generar Matriz GTC-45
             </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Datos pre-cargados según el perfil de la empresa. Puede editarlos antes de generar.
+            </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="ciiu">Código CIIU *</Label>
-                <Input
-                  id="ciiu"
-                  placeholder="Ej: 4711"
-                  data-testid="input-ciiu"
-                  {...register("ciiu", { required: "El código CIIU es requerido" })}
-                />
-                {errors.ciiu && <p className="text-xs text-destructive">{errors.ciiu.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="num_empleados">Número de empleados</Label>
-                <Input
-                  id="num_empleados"
-                  type="number"
-                  placeholder="Ej: 45"
-                  data-testid="input-num-empleados"
-                  {...register("num_empleados")}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ciiu">Código CIIU *</Label>
+                  <Input
+                    id="ciiu"
+                    placeholder="Ej: 4711"
+                    data-testid="input-ciiu"
+                    {...register("ciiu", { required: "El código CIIU es requerido" })}
+                  />
+                  {errors.ciiu && <p className="text-xs text-destructive">{errors.ciiu.message}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="num_empleados">Número de empleados</Label>
+                  <Input
+                    id="num_empleados"
+                    type="number"
+                    placeholder="Ej: 45"
+                    data-testid="input-num-empleados"
+                    {...register("num_empleados")}
+                  />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="procesos">Procesos principales</Label>
                 <Textarea
                   id="procesos"
-                  rows={2}
+                  rows={3}
                   placeholder="Ej: Ventas al detal, bodegaje, atención al cliente..."
                   data-testid="input-procesos"
                   {...register("procesos")}
@@ -150,10 +182,18 @@ export default function Matrices() {
                   {...register("descripcion")}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={generar.isPending} data-testid="btn-generar-matriz">
-                <Sparkles className="h-4 w-4 mr-2" />
-                {generar.isPending ? "Generando con IA..." : "Generar Matriz"}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1" disabled={generar.isPending} data-testid="btn-generar-matriz">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {generar.isPending ? "Generando con IA..." : "Generar Matriz"}
+                </Button>
+                {lastResult && (
+                  <Button type="button" variant="outline" onClick={handleDownload} title="Descargar .docx">
+                    <Download className="h-4 w-4 mr-2" />
+                    .docx
+                  </Button>
+                )}
+              </div>
             </form>
           </CardContent>
         </Card>

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users, ShieldCheck, Heart, Calendar, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CompanyPageHeader } from "@/components/CompanyPageHeader";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
@@ -62,10 +63,11 @@ export default function Comites() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Comités Activos</h1>
-        <p className="text-sm text-muted-foreground mt-1">COPASST y Comité de Convivencia Laboral · Vigencias y estado</p>
-      </div>
+      <CompanyPageHeader
+        empresaId={empresaId}
+        titulo="Comités Activos"
+        subtitulo="COPASST y Comité de Convivencia Laboral · Vigencias y estado"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card data-testid="card-copasst">

@@ -1,0 +1,32 @@
+Te voy a hacer comentarios para que corrijas en cada punto:
+
+1. Dashboard:
+Debe tener habilitado el usuario y contraseña, en caso de que sea usuario admin puede ver todas las empresas como hoy esta el dashboard, en caso de que sea un usuario de alguna empresa solo podra ver la empresa asociada. por lo mismo debemo tener una base de datos donde este relacionado los usuarios con los Nit de las empresas, la fecha de inicio, fin del usuario, si esta habilitado o deshabilitado, esto dado que las empresas pueden solicitar el cambio del usuario. Tambien deberiamos tener el nombre de consultor con su identificacion y credenciales, este podra ver las empresas que tiene asignadas.
+
+2. Resumen empresa:
+Esta muy bien diseñado, sin embargo tenemos que agregar un campo con el vinculo de la evidencia, ese vinculo es un link para ir directamente a una carpeta en drive donde se encuentren los documentos evidencia.
+
+3. Exámenes Médicos (Res. 2346/2007):
+Agrega el nombre de la empresa y NIT en la parte superior, esto debe ser estandar en todas las hojas de detalle.
+
+En esta hoja deben aparecer los documentos que estan cargados en la carpeta de drive. Inventa documentos en pdf que sirvan de ejemplo. Adicionalmente coloca un titulo sobre cargar nuevo documento, con el siguiente detalle: "Carga eldocuemnto en PDF el cual sera guardado automaticamente en el drive relacionado a la compañia.", luego al cargar el documento debe aparecer un mensaje de si fue exitoso o no el cargue. Alimentar el informe de seguimiento correspondiente a ese trabajador y empresa.
+
+usa mi carpeta en drive para crear la estructura de archivos que vamos a necesitar de la sigueinte manera:
+la carpeta raiz es "Regis" esta en el siguiente enlace:
+https://drive.google.com/drive/u/0/folders/1-SdLdLriDUl3TFiTSJHllBsfjC1jk9Lf
+Crea las subcarpetas por cada empresa
+Dentro de cada carpeta de empresa crea las carpetas independientes sobre: Planillas PILA, examenes medicos, Matriz de riesgo, Actas, Plan de prevencion, otras que consideres relevantes. 
+
+4.Matriz de Riesgos GTC-45:
+Agrega el nombre de la empresa y NIT en la parte superior, esto debe ser estandar en todas las hojas de detalle. Dado que esta relacionado con una empresa que ya se conoce debe tener un codigo CIIU, numero de empleados y los riesgos más comunes para esa actividad económica (físicos, químicos, psicosociales, ergonómicos, etc.), este espacio llega con la información por default segun el tipo de empresa y debe ser editable. Al generar la matriz debe generarse un documento en .doc y .pdf para descargar y poder firmar o editar segun requiera el consultor. Finalmente debe existir una opcion para cargar el documento final en esta sección y que se guarde en el drive de la carpeta correspondiente segun la empresa.
+
+5. Actas de Comité (COPASST / Convivencia)
+Agregar la opcion para cargar una transcripcion de la reunión. Al generar el acta debe permitir la descarga del documento en .doc y .pdf para la firma de los integrantes. Tambien se debe poder envía un correo a los integrantes para registrar asistencia digitalmente. Finalmente debe existir una opcion para cargar el documento final en esta sección y que se guarde en el drive de la carpeta correspondiente segun la empresa.
+
+6. Planillas PILA
+Agrega el nombre de la empresa y NIT en la parte superior, esto debe ser estandar en todas las hojas de detalle.
+Agregar el seguimiento de las plantillas agregadas y pendientes. 
+Cuando llega el documento, archivarlo automáticamente en la carpeta correcta del Drive correspondiente.
+
+
+Agrega la información dummy que sea necesaria para hacer realista el seguimiento de las empresas que tenemos cargadas.

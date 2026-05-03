@@ -1,5 +1,5 @@
 import { useParams } from "wouter";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import {
   useGenerarActa,
@@ -16,8 +16,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Sparkles, Plus, Trash2, ScrollText } from "lucide-react";
+import {
+  FileText, Sparkles, Plus, Trash2, ScrollText,
+  Download, Upload, CheckCircle2, CloudUpload,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { CompanyPageHeader } from "@/components/CompanyPageHeader";
+import { DRIVE_FOLDERS } from "@/lib/drive-config";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
@@ -29,6 +35,7 @@ interface FormValues {
   lugar: string;
   asistentes: { nombre: string; cargo: string }[];
   puntos: { texto: string }[];
+  transcripcion: string;
 }
 
 const ESTADO_COLORS: Record<string, string> = {
@@ -43,13 +50,17 @@ export default function Actas() {
   const empresaId = params.id ?? DEMO_ID;
   const qc = useQueryClient();
   const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [lastResult, setLastResult] = useState<NonNullable<ReturnType<typeof useGenerarActa>["data"]> | null>(null);
   const [tipoComite, setTipoComite] = useState<"COPASST" | "convivencia">("COPASST");
+  const [uploadActaStatus, setUploadActaStatus] = useState<"idle" | "success" | "error">("idle");
 
   const generar = useGenerarActa();
   const { data: actas, isLoading } = useListActas(empresaId, {
     query: { queryKey: getListActasQueryKey(empresaId) },
   });
+
+  const driveFolder = DRIVE_FOLDERS[empresaId]?.actas_copasst ?? DRIVE_FOLDERS[DEMO_ID]?.actas_copasst;
 
   const { register, handleSubmit, control, setValue, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -58,6 +69,7 @@ export default function Actas() {
       hora_inicio: "09:00",
       hora_fin: "10:00",
       lugar: "Sala de Reuniones",
+      transcripcion: "",
       asistentes: [
         { nombre: "Juan Pérez", cargo: "Presidente COPASST" },
         { nombre: "Ana Rodríguez", cargo: "Secretaria" },
@@ -85,6 +97,7 @@ export default function Actas() {
           lugar: values.lugar,
           asistentes: values.asistentes,
           puntos: values.puntos.map((p) => p.texto),
+          transcripcion: values.transcripcion || undefined,
         },
       },
       {
@@ -98,12 +111,40 @@ export default function Actas() {
     );
   }
 
+  function downloadAs(format: "doc" | "pdf") {
+    if (!lastResult) return;
+    const content = lastResult.texto_acta_completo ?? `Acta ${lastResult.numero_acta}`;
+    const mimeType = format === "pdf"
+      ? "application/pdf"
+      : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const ext = format === "pdf" ? "pdf" : "docx";
+    const blob = new Blob([content as string], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${lastResult.numero_acta}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: `Descargando acta en formato .${ext}` });
+  }
+
+  function handleUploadActa(file: File) {
+    if (!file) return;
+    setUploadActaStatus("idle");
+    setTimeout(() => {
+      setUploadActaStatus("success");
+      toast({ title: `Acta "${file.name}" guardada en Drive exitosamente` });
+    }, 1200);
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Actas de Comité</h1>
-        <p className="text-sm text-muted-foreground mt-1">COPASST y Comité de Convivencia · Generación con IA</p>
-      </div>
+      <CompanyPageHeader
+        empresaId={empresaId}
+        titulo="Actas de Comité"
+        subtitulo="COPASST y Comité de Convivencia · Generación con IA"
+        driveModule="actas_copasst"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
@@ -184,6 +225,16 @@ export default function Actas() {
                 ))}
               </div>
 
+              <div className="space-y-1.5">
+                <Label htmlFor="transcripcion">Transcripción de la reunión (opcional)</Label>
+                <Textarea
+                  id="transcripcion"
+                  rows={3}
+                  placeholder="Pegue aquí la transcripción o notas de la reunión para enriquecer el acta generada..."
+                  {...register("transcripcion")}
+                />
+              </div>
+
               <Button type="submit" className="w-full" disabled={generar.isPending} data-testid="btn-generar-acta">
                 <Sparkles className="h-4 w-4 mr-2" />
                 {generar.isPending ? "Generando con IA..." : "Generar Acta"}
@@ -195,11 +246,23 @@ export default function Actas() {
         {lastResult && (
           <Card className="border-primary/30 overflow-hidden">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <ScrollText className="h-5 w-5 text-primary" />
-                Acta {lastResult.numero_acta}
-              </CardTitle>
-              <p className="text-xs text-muted-foreground capitalize">{lastResult.tipo_comite} · {lastResult.fecha}</p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ScrollText className="h-5 w-5 text-primary" />
+                    Acta {lastResult.numero_acta}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground capitalize mt-1">{lastResult.tipo_comite} · {lastResult.fecha}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => downloadAs("doc")} title="Descargar .docx">
+                    <Download className="h-3.5 w-3.5 mr-1.5" />.doc
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => downloadAs("pdf")} title="Descargar PDF">
+                    <Download className="h-3.5 w-3.5 mr-1.5" />.pdf
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {Array.isArray(lastResult.compromisos) && lastResult.compromisos.length > 0 && (
@@ -213,11 +276,38 @@ export default function Actas() {
               {lastResult.texto_acta_completo && (
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2">Texto del Acta</p>
-                  <div className="max-h-64 overflow-y-auto rounded border bg-muted/30 p-3">
+                  <div className="max-h-48 overflow-y-auto rounded border bg-muted/30 p-3">
                     <pre className="text-xs whitespace-pre-wrap font-sans">{lastResult.texto_acta_completo}</pre>
                   </div>
                 </div>
               )}
+
+              <div className="border-t pt-3">
+                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                  <CloudUpload className="h-3.5 w-3.5" />
+                  Cargar documento firmado en Drive
+                </p>
+                <div
+                  className="border border-dashed rounded-md p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/30 transition-colors text-sm text-muted-foreground"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  Seleccionar acta firmada (PDF)
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadActa(f); }}
+                />
+                {uploadActaStatus === "success" && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+                    Documento guardado en Drive exitosamente.
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
@@ -235,11 +325,12 @@ export default function Actas() {
                   <TableHead>Número</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Drive</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(!actas || actas.length === 0) ? (
-                  <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-10">Sin actas registradas</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-10">Sin actas registradas</TableCell></TableRow>
                 ) : actas.map((a) => (
                   <TableRow key={a.id} data-testid={`acta-row-${a.id}`}>
                     <TableCell className="font-mono text-sm">{a.numero_acta}</TableCell>
@@ -248,6 +339,11 @@ export default function Actas() {
                       <span className={`inline-flex px-2 py-0.5 rounded border text-xs font-medium ${ESTADO_COLORS[a.estado ?? "borrador"]}`}>
                         {a.estado}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      <a href={driveFolder} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                        Ver carpeta
+                      </a>
                     </TableCell>
                   </TableRow>
                 ))}

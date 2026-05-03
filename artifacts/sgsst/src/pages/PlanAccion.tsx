@@ -1,6 +1,7 @@
 import { useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { CompanyPageHeader } from "@/components/CompanyPageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -189,12 +190,12 @@ export default function PlanAccion() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Plan de Acción</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {data.empresa_nombre} · Mejora continua Res. 0312 de 2019
-        </p>
-      </div>
+      <CompanyPageHeader
+        empresaId={empresaId}
+        titulo="Plan de Acción"
+        subtitulo="Mejora continua · Res. 0312 de 2019"
+        driveModule="politicas"
+      />
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

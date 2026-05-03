@@ -13,9 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, MapPin, Users, ChevronDown, ChevronRight } from "lucide-react";
+import { Building2, MapPin, Users, ChevronDown, ChevronRight, FolderOpen, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { DRIVE_FOLDERS, DRIVE_ROOT } from "@/lib/drive-config";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
@@ -59,7 +60,15 @@ const ESTADO_COLORS: Record<string, string> = {
   no_aplica: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
-function StandardRow({ est, empresaId }: { est: NonNullable<ReturnType<typeof useGetCumplimiento>["data"]>["estandares"][0]; empresaId: string }) {
+function StandardRow({
+  est,
+  empresaId,
+  driveUrl,
+}: {
+  est: NonNullable<ReturnType<typeof useGetCumplimiento>["data"]>["estandares"][0];
+  empresaId: string;
+  driveUrl: string;
+}) {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -97,7 +106,7 @@ function StandardRow({ est, empresaId }: { est: NonNullable<ReturnType<typeof us
             {est.estandar}
           </div>
         </TableCell>
-        <TableCell className="w-48">
+        <TableCell className="w-44">
           <div className="flex items-center gap-2">
             <div className="flex-1 bg-gray-200 rounded-full h-2">
               <div className={cn("h-2 rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
@@ -114,6 +123,18 @@ function StandardRow({ est, empresaId }: { est: NonNullable<ReturnType<typeof us
         </TableCell>
         <TableCell className="text-right text-sm text-muted-foreground">
           {est.puntaje_obtenido.toFixed(1)} / {est.puntaje_posible.toFixed(1)} pts
+        </TableCell>
+        <TableCell className="text-center w-20">
+          <a
+            href={driveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+            title="Ver evidencias en Drive"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+          </a>
         </TableCell>
       </TableRow>
       {open && est.criterios.map((c) => (
@@ -139,6 +160,17 @@ function StandardRow({ est, empresaId }: { est: NonNullable<ReturnType<typeof us
               </SelectContent>
             </Select>
           </TableCell>
+          <TableCell className="text-center">
+            <a
+              href={driveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+              title="Evidencia en Drive"
+            >
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </TableCell>
         </TableRow>
       ))}
     </>
@@ -155,6 +187,8 @@ export default function EmpresaDetail() {
   const { data: cumplimiento, isLoading: loadingCumpl } = useGetCumplimiento(empresaId, {
     query: { queryKey: getGetCumplimientoQueryKey(empresaId) },
   });
+
+  const driveUrl = DRIVE_FOLDERS[empresaId]?.raiz ?? DRIVE_ROOT;
 
   if (loadingEmpresa || loadingCumpl) {
     return (
@@ -175,9 +209,18 @@ export default function EmpresaDetail() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="empresa-nombre">{empresa?.nombre}</h1>
           <p className="text-muted-foreground text-sm mt-1">NIT: {empresa?.nit} · CIIU: {empresa?.codigo_ciiu}</p>
         </div>
-        <Badge variant="outline" className="text-sm px-3 py-1">
-          {empresa?.tamano}
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-sm px-3 py-1">{empresa?.tamano}</Badge>
+          <a
+            href={driveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-md hover:bg-blue-100"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Drive
+          </a>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -225,22 +268,36 @@ export default function EmpresaDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Estándares Mínimos · Resolución 0312 de 2019</CardTitle>
-          <p className="text-xs text-muted-foreground">Cumplidos / No Cumplidos / En Proceso · Haga clic en un estándar para ver criterios</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Estándares Mínimos · Resolución 0312 de 2019</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Cumplidos / No Cumplidos / En Proceso · Haga clic en un estándar para ver criterios</p>
+            </div>
+            <a
+              href={driveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Ver evidencias
+            </a>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Estándar</TableHead>
-                <TableHead className="w-48">Avance</TableHead>
+                <TableHead className="w-44">Avance</TableHead>
                 <TableHead className="text-center">C / NC / EP</TableHead>
                 <TableHead className="text-right">Puntaje</TableHead>
+                <TableHead className="text-center w-20">Evidencia</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(cumplimiento?.estandares ?? []).map((est) => (
-                <StandardRow key={est.estandar} est={est} empresaId={empresaId} />
+                <StandardRow key={est.estandar} est={est} empresaId={empresaId} driveUrl={driveUrl} />
               ))}
             </TableBody>
           </Table>
