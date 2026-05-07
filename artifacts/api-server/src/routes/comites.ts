@@ -1,20 +1,23 @@
 import { Router } from "express";
-import { supabase } from "../lib/supabase";
+import { db } from "@workspace/db";
+import { comitesTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
 import { DEMO_COMITES } from "../lib/demo-data";
 
 const router = Router();
 
 router.get("/:empresaId", async (req, res) => {
-  const { data, error } = await supabase
-    .from("comites")
-    .select("*")
-    .eq("empresa_id", req.params.empresaId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
+  try {
+    const data = await db
+      .select()
+      .from(comitesTable)
+      .where(eq(comitesTable.empresa_id, req.params.empresaId))
+      .orderBy(desc(comitesTable.created_at));
+    return res.json(data.length ? data : DEMO_COMITES.filter((c) => c.empresa_id === req.params.empresaId));
+  } catch (err) {
+    req.log.warn({ err }, "DB unavailable, using demo data");
     return res.json(DEMO_COMITES.filter((c) => c.empresa_id === req.params.empresaId));
   }
-  return res.json(data?.length ? data : DEMO_COMITES.filter((c) => c.empresa_id === req.params.empresaId));
 });
 
 export default router;

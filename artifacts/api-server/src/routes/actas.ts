@@ -1,14 +1,10 @@
 import { Router, Request, Response } from "express";
-import { supabase } from "../lib/supabase";
+import { db } from "@workspace/db";
+import { actasComiteTable, empresasTable } from "@workspace/db";
+import { eq, and, desc, max } from "drizzle-orm";
 import { callAI } from "../lib/ai";
 import { SKILL_ACTAS_COPASST } from "../lib/skills";
-import {
-  getDemoActas,
-  getDemoActaById,
-  addDemoActa,
-  updateDemoActa,
-  DEMO_EMPRESAS,
-} from "../lib/demo-data";
+import { DEMO_EMPRESAS } from "../lib/demo-data";
 import { generateActaDocx, generateActaPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 
@@ -17,29 +13,31 @@ const router = Router();
 async function resolveEmpresa(empresaId: string): Promise<EmpresaData> {
   const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
   if (demo) return demo;
-  const { data } = await supabase
-    .from("empresas")
-    .select("id, nombre, nit, codigo_ciiu, ciudad")
-    .eq("id", empresaId)
-    .single();
-  return (data as EmpresaData | null) ?? { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
+  try {
+    const rows = await db.select({
+      id: empresasTable.id,
+      nombre: empresasTable.nombre,
+      nit: empresasTable.nit,
+      codigo_ciiu: empresasTable.codigo_ciiu,
+      ciudad: empresasTable.ciudad,
+    }).from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+    if (rows.length) return rows[0] as EmpresaData;
+  } catch { /* ignore */ }
+  return { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
 }
 
 async function getNextVersion(empresaId: string, tipoComite: string): Promise<number> {
-  const demoMax = getDemoActas()
-    .filter((a) => a.empresa_id === empresaId && a.tipo_comite === tipoComite)
-    .reduce((max, a) => Math.max(max, Number(a.version ?? 0)), 0);
-
-  const { data } = await supabase
-    .from("actas_comite")
-    .select("version")
-    .eq("empresa_id", empresaId)
-    .eq("tipo_comite", tipoComite)
-    .order("version", { ascending: false })
-    .limit(1);
-
-  const supaMax = (data?.[0] as { version?: number } | null)?.version ?? 0;
-  return Math.max(demoMax, supaMax) + 1;
+  try {
+    const rows = await db.select({ v: max(actasComiteTable.version) })
+      .from(actasComiteTable)
+      .where(and(
+        eq(actasComiteTable.empresa_id, empresaId),
+        eq(actasComiteTable.tipo_comite, tipoComite)
+      ));
+    return (rows[0]?.v ?? 0) + 1;
+  } catch {
+    return 1;
+  }
 }
 
 function safeSlug(text: string, maxLen = 30): string {
@@ -94,54 +92,31 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
   }
 
   const numeroActa = (resultado.numero_acta as string) ?? `${tipo_comite}-${fecha.substring(0, 7)}-v${version}`;
-
   const compromisosArr = Array.isArray(resultado.compromisos) ? (resultado.compromisos as unknown[]) : [];
 
-  const newActa: Record<string, unknown> = {
-    id: crypto.randomUUID(),
-    empresa_id,
-    numero_acta: numeroActa,
-    tipo_comite,
-    version,
-    fecha_reunion: fecha,
-    fecha,
-    hora_inicio,
-    hora_fin,
-    lugar,
-    citada_por: citada_por ?? empresa.nombre,
-    puntos_tratados: puntos,
-    puntos_orden: puntos,
-    asistentes_confirmados: asistentes,
-    asistentes,
-    compromisos: compromisosArr,
-    acta_generada: resultado.texto_acta_completo ?? JSON.stringify(resultado),
-    texto_acta: resultado.texto_acta_completo ?? JSON.stringify(resultado),
-    estado: "borrador",
-    drive_url: null,
-    created_at: new Date().toISOString(),
-  };
-
-  const { data: actaDb, error: insertError } = await supabase
-    .from("actas_comite")
-    .insert({
+  let actaId: string;
+  try {
+    const rows = await db.insert(actasComiteTable).values({
       empresa_id,
       numero_acta: numeroActa,
       tipo_comite,
       version,
       fecha_reunion: fecha,
       lugar,
+      hora_inicio,
+      hora_fin,
       citada_por: citada_por ?? empresa.nombre,
       puntos_tratados: puntos,
-      acta_generada: resultado.texto_acta_completo ?? JSON.stringify(resultado),
-      estado: "borrador",
       asistentes_confirmados: asistentes,
       compromisos: compromisosArr,
-    })
-    .select()
-    .single();
-
-  const actaId = insertError ? (newActa.id as string) : actaDb.id;
-  if (insertError) addDemoActa(newActa);
+      acta_generada: (resultado.texto_acta_completo as string) ?? JSON.stringify(resultado),
+      estado: "borrador",
+    }).returning({ id: actasComiteTable.id });
+    actaId = rows[0].id;
+  } catch (err) {
+    req.log.error({ err }, "Failed to persist acta to DB");
+    actaId = crypto.randomUUID();
+  }
 
   return res.json({
     acta_id: actaId,
@@ -149,7 +124,7 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
     tipo_comite,
     version,
     fecha,
-    compromisos: (resultado.compromisos as unknown[]) ?? [],
+    compromisos: compromisosArr,
     texto_acta_completo: (resultado.texto_acta_completo as string) ?? JSON.stringify(resultado),
     raw: resultado,
   });
@@ -162,10 +137,12 @@ async function handleExportar(req: Request, res: Response) {
     return res.status(400).json({ error: "Formato inválido. Use 'docx' o 'pdf'." });
   }
 
-  let acta = (getDemoActaById(actaId) ?? null) as Record<string, unknown> | null;
-  if (!acta) {
-    const { data } = await supabase.from("actas_comite").select("*").eq("id", actaId).single();
-    acta = data ?? null;
+  let acta: Record<string, unknown> | null = null;
+  try {
+    const rows = await db.select().from(actasComiteTable).where(eq(actasComiteTable.id, actaId)).limit(1);
+    acta = rows[0] as Record<string, unknown> ?? null;
+  } catch (err) {
+    req.log.error({ err }, "Error fetching acta for export");
   }
   if (!acta) {
     return res.status(404).json({ error: "Acta no encontrada" });
@@ -198,14 +175,12 @@ async function handleExportar(req: Request, res: Response) {
   }
 
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Actas", fileName, buffer, contentType);
-  if (!driveUrl) {
-    req.log.warn({ actaId, fileName }, "Drive upload failed — file not saved to Drive");
-  } else {
-    updateDemoActa(actaId, { drive_url: driveUrl });
-    await supabase
-      .from("actas_comite")
-      .update({ drive_url: driveUrl })
-      .eq("id", actaId);
+  if (driveUrl) {
+    try {
+      await db.update(actasComiteTable).set({ drive_url: driveUrl }).where(eq(actasComiteTable.id, actaId));
+    } catch (err) {
+      req.log.warn({ err }, "Failed to update drive_url for acta");
+    }
   }
 
   res.setHeader("Content-Type", contentType);
@@ -227,11 +202,11 @@ router.post("/:actaId/subir-firmada", async (req, res) => {
 
   if (!file_base64) return res.status(400).json({ error: "file_base64 requerido" });
 
-  let acta = (getDemoActaById(actaId) ?? null) as Record<string, unknown> | null;
-  if (!acta) {
-    const { data } = await supabase.from("actas_comite").select("*").eq("id", actaId).single();
-    acta = data ?? null;
-  }
+  let acta: Record<string, unknown> | null = null;
+  try {
+    const rows = await db.select().from(actasComiteTable).where(eq(actasComiteTable.id, actaId)).limit(1);
+    acta = rows[0] as Record<string, unknown> ?? null;
+  } catch { /* ignore */ }
   if (!acta) return res.status(404).json({ error: "Acta no encontrada" });
 
   const empresa = await resolveEmpresa(acta.empresa_id as string);
@@ -258,54 +233,38 @@ router.post("/:actaId/subir-firmada", async (req, res) => {
     return res.status(502).json({ error: "Error al subir el archivo a Drive" });
   }
 
-  updateDemoActa(actaId, { drive_url_firmada: driveUrl, estado: "firmado" });
-  await supabase
-    .from("actas_comite")
-    .update({ drive_url_firmada: driveUrl, estado: "firmado" })
-    .eq("id", actaId);
+  try {
+    await db.update(actasComiteTable)
+      .set({ drive_url_firmada: driveUrl, estado: "firmado" })
+      .where(eq(actasComiteTable.id, actaId));
+  } catch (err) {
+    req.log.warn({ err }, "Failed to update signed acta state");
+  }
 
   req.log.info({ actaId, driveUrl }, "Signed acta uploaded to Drive");
   return res.json({ drive_url: driveUrl });
 });
 
 router.get("/:empresaId", async (req, res) => {
-  const { data, error } = await supabase
-    .from("actas_comite")
-    .select("id, empresa_id, tipo_comite, numero_acta, version, fecha_reunion, estado, drive_url, created_at")
-    .eq("empresa_id", req.params.empresaId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return res.json(
-      getDemoActas()
-        .filter((a) => a.empresa_id === req.params.empresaId)
-        .map((a) => ({
-          id: a.id,
-          empresa_id: a.empresa_id,
-          tipo_comite: a.tipo_comite,
-          numero_acta: a.numero_acta,
-          version: a.version,
-          fecha_reunion: a.fecha_reunion ?? a.fecha,
-          estado: a.estado ?? "borrador",
-          drive_url: a.drive_url ?? null,
-          created_at: a.created_at,
-        }))
-    );
+  try {
+    const data = await db.select({
+      id: actasComiteTable.id,
+      empresa_id: actasComiteTable.empresa_id,
+      tipo_comite: actasComiteTable.tipo_comite,
+      numero_acta: actasComiteTable.numero_acta,
+      version: actasComiteTable.version,
+      fecha_reunion: actasComiteTable.fecha_reunion,
+      estado: actasComiteTable.estado,
+      drive_url: actasComiteTable.drive_url,
+      created_at: actasComiteTable.created_at,
+    }).from(actasComiteTable)
+      .where(eq(actasComiteTable.empresa_id, req.params.empresaId))
+      .orderBy(desc(actasComiteTable.created_at));
+    return res.json(data);
+  } catch (err) {
+    req.log.warn({ err }, "DB unavailable for actas");
+    return res.json([]);
   }
-  const demo = getDemoActas()
-    .filter((a) => a.empresa_id === req.params.empresaId)
-    .map((a) => ({
-      id: a.id,
-      empresa_id: a.empresa_id,
-      tipo_comite: a.tipo_comite,
-      numero_acta: a.numero_acta,
-      version: a.version,
-      fecha_reunion: a.fecha_reunion ?? a.fecha,
-      estado: a.estado ?? "borrador",
-      drive_url: a.drive_url ?? null,
-      created_at: a.created_at,
-    }));
-  return res.json([...(data ?? []), ...demo]);
 });
 
 export default router;

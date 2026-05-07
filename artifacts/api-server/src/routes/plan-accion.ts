@@ -1,5 +1,7 @@
 import { Router } from "express";
-import { supabase } from "../lib/supabase";
+import { db } from "@workspace/db";
+import { documentosCumplimientoTable, empresasTable } from "@workspace/db";
+import { eq, and, inArray, desc } from "drizzle-orm";
 import { callAI } from "../lib/ai";
 import { SKILL_PLAN_ACCION } from "../lib/skills";
 import { getDemoCriterios, DEMO_EMPRESAS } from "../lib/demo-data";
@@ -17,35 +19,41 @@ function getPrioridad(peso: number): "Alta" | "Media" | "Baja" {
 router.get("/:empresaId", async (req, res) => {
   const { empresaId } = req.params;
 
-  const { data: criterios, error } = await supabase
-    .from("documentos_cumplimiento")
-    .select("*")
-    .eq("empresa_id", empresaId)
-    .in("estado", ["no_cumple", "en_proceso"])
-    .order("peso_porcentual", { ascending: false });
+  let allCriterios: Record<string, unknown>[];
+  try {
+    const rows = await db
+      .select()
+      .from(documentosCumplimientoTable)
+      .where(and(
+        eq(documentosCumplimientoTable.empresa_id, empresaId),
+        inArray(documentosCumplimientoTable.estado, ["no_cumple", "en_proceso"])
+      ))
+      .orderBy(desc(documentosCumplimientoTable.peso_porcentual));
+    allCriterios = rows.length
+      ? rows as unknown as Record<string, unknown>[]
+      : getDemoCriterios().filter((c) => c.empresa_id === empresaId && (c.estado === "no_cumple" || c.estado === "en_proceso")) as unknown as Record<string, unknown>[];
+  } catch {
+    allCriterios = getDemoCriterios().filter(
+      (c) => c.empresa_id === empresaId && (c.estado === "no_cumple" || c.estado === "en_proceso")
+    ) as unknown as Record<string, unknown>[];
+  }
 
-  const allCriterios: Record<string, unknown>[] = error
-    ? getDemoCriterios().filter(
-        (c) => c.empresa_id === empresaId && (c.estado === "no_cumple" || c.estado === "en_proceso")
-      )
-    : criterios?.length
-      ? criterios
-      : getDemoCriterios().filter(
-          (c) => c.empresa_id === empresaId && (c.estado === "no_cumple" || c.estado === "en_proceso")
-        );
+  const sorted = [...allCriterios].sort((a, b) => Number(b.peso_porcentual) - Number(a.peso_porcentual));
 
-  const sorted = [...allCriterios].sort(
-    (a, b) => Number(b.peso_porcentual) - Number(a.peso_porcentual)
-  );
+  let empresa: { nombre?: string | null; codigo_ciiu?: string | null; num_empleados?: number | null; ciudad?: string | null } | undefined =
+    DEMO_EMPRESAS.find((e) => e.id === empresaId);
+  if (!empresa) {
+    try {
+      const rows = await db.select().from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+      if (rows.length) empresa = rows[0];
+    } catch { /* ignore */ }
+  }
 
-  const empresa = DEMO_EMPRESAS.find((e) => e.id === empresaId);
   const cached = planCache.get(empresaId);
 
   const accionesBase = sorted.map((c) => {
     const aiData = cached
-      ? (cached.acciones as Record<string, unknown>[])?.find(
-          (a) => a.criterio_codigo === c.criterio_codigo
-        )
+      ? (cached.acciones as Record<string, unknown>[])?.find((a) => a.criterio_codigo === c.criterio_codigo)
       : null;
 
     return {
@@ -82,28 +90,35 @@ router.get("/:empresaId", async (req, res) => {
 router.post("/:empresaId/generar", async (req, res) => {
   const { empresaId } = req.params;
 
-  const { data: criterios, error } = await supabase
-    .from("documentos_cumplimiento")
-    .select("*")
-    .eq("empresa_id", empresaId)
-    .in("estado", ["no_cumple", "en_proceso"])
-    .order("peso_porcentual", { ascending: false });
+  let allCriterios: Record<string, unknown>[];
+  try {
+    const rows = await db
+      .select()
+      .from(documentosCumplimientoTable)
+      .where(and(
+        eq(documentosCumplimientoTable.empresa_id, empresaId),
+        inArray(documentosCumplimientoTable.estado, ["no_cumple", "en_proceso"])
+      ))
+      .orderBy(desc(documentosCumplimientoTable.peso_porcentual));
+    allCriterios = rows.length
+      ? rows as unknown as Record<string, unknown>[]
+      : getDemoCriterios().filter((c) => c.empresa_id === empresaId && (c.estado === "no_cumple" || c.estado === "en_proceso")) as unknown as Record<string, unknown>[];
+  } catch {
+    allCriterios = getDemoCriterios().filter(
+      (c) => c.empresa_id === empresaId && (c.estado === "no_cumple" || c.estado === "en_proceso")
+    ) as unknown as Record<string, unknown>[];
+  }
 
-  const allCriterios: Record<string, unknown>[] = error
-    ? getDemoCriterios().filter(
-        (c) => c.empresa_id === empresaId && (c.estado === "no_cumple" || c.estado === "en_proceso")
-      )
-    : criterios?.length
-      ? criterios
-      : getDemoCriterios().filter(
-          (c) => c.empresa_id === empresaId && (c.estado === "no_cumple" || c.estado === "en_proceso")
-        );
+  const sorted = [...allCriterios].sort((a, b) => Number(b.peso_porcentual) - Number(a.peso_porcentual));
 
-  const sorted = [...allCriterios].sort(
-    (a, b) => Number(b.peso_porcentual) - Number(a.peso_porcentual)
-  );
-
-  const empresa = DEMO_EMPRESAS.find((e) => e.id === empresaId);
+  let empresa: { nombre?: string | null; codigo_ciiu?: string | null; num_empleados?: number | null; ciudad?: string | null } | undefined =
+    DEMO_EMPRESAS.find((e) => e.id === empresaId);
+  if (!empresa) {
+    try {
+      const rows = await db.select().from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+      if (rows.length) empresa = rows[0];
+    } catch { /* ignore */ }
+  }
 
   const userMsg = `Empresa: ${empresa?.nombre ?? "Empresa"} | Sector CIIU: ${empresa?.codigo_ciiu ?? "N/A"} | Empleados: ${empresa?.num_empleados ?? "N/A"} | Ciudad: ${empresa?.ciudad ?? "Colombia"}
 

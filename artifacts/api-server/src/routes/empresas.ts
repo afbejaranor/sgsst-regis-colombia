@@ -1,31 +1,23 @@
 import { Router } from "express";
-import { supabase } from "../lib/supabase";
-import {
-  getDemoEmpresas,
-  getDemoEmpresaById,
-  addDemoEmpresa,
-  removeDemoEmpresa,
-  DEMO_EMPRESA_ID,
-  EMPRESA2_ID,
-  EMPRESA3_ID,
-} from "../lib/demo-data";
-
-const DEMO_IDS = new Set([DEMO_EMPRESA_ID, EMPRESA2_ID, EMPRESA3_ID]);
+import { db } from "@workspace/db";
+import { empresasTable } from "@workspace/db";
+import { eq, asc } from "drizzle-orm";
+import { DEMO_EMPRESAS, addDemoEmpresa, removeDemoEmpresa } from "../lib/demo-data";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
-  const { data, error } = await supabase
-    .from("empresas")
-    .select("*")
-    .eq("activa", true)
-    .order("nombre");
-
-  if (error) {
-    req.log.warn({ error }, "Supabase unavailable, using demo data");
-    return res.json(getDemoEmpresas());
+  try {
+    const data = await db
+      .select()
+      .from(empresasTable)
+      .where(eq(empresasTable.activa, true))
+      .orderBy(asc(empresasTable.nombre));
+    return res.json(data.length ? data : DEMO_EMPRESAS);
+  } catch (err) {
+    req.log.warn({ err }, "DB unavailable, using demo data");
+    return res.json(DEMO_EMPRESAS);
   }
-  return res.json(data?.length ? data : getDemoEmpresas());
 });
 
 router.post("/", async (req, res) => {
@@ -61,11 +53,7 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "nombre, nit y codigo_ciiu son requeridos" });
   }
 
-  const now = new Date().toISOString();
-  const newId = crypto.randomUUID();
-
   const newEmpresa = {
-    id: newId,
     nombre: nombre.trim(),
     nit: nit.trim(),
     codigo_ciiu: codigo_ciiu.trim(),
@@ -79,66 +67,55 @@ router.post("/", async (req, res) => {
     contacto_whatsapp: contacto_whatsapp ?? null,
     nivel_sgsst: nivel_sgsst ?? "estandar",
     activa: true,
-    created_at: now,
-    updated_at: now,
   };
 
-  const { data: dbEmpresa, error: insertError } = await supabase
-    .from("empresas")
-    .insert(newEmpresa)
-    .select()
-    .single();
-
-  if (insertError) {
-    req.log.warn({ insertError }, "Supabase insert failed, storing in demo list");
-    addDemoEmpresa(newEmpresa as Parameters<typeof addDemoEmpresa>[0]);
-    return res.status(201).json(newEmpresa);
+  try {
+    const [inserted] = await db.insert(empresasTable).values(newEmpresa).returning();
+    addDemoEmpresa(inserted as Parameters<typeof addDemoEmpresa>[0]);
+    return res.status(201).json(inserted);
+  } catch (err) {
+    req.log.warn({ err }, "DB insert failed, storing in demo list");
+    const withId = { ...newEmpresa, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    addDemoEmpresa(withId as Parameters<typeof addDemoEmpresa>[0]);
+    return res.status(201).json(withId);
   }
-
-  addDemoEmpresa(dbEmpresa as Parameters<typeof addDemoEmpresa>[0]);
-  return res.status(201).json(dbEmpresa);
 });
 
 router.get("/:id", async (req, res) => {
-  const id = String(req.params.id);
-  const { data, error } = await supabase
-    .from("empresas")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error) {
-    const demo = getDemoEmpresaById(id);
+  try {
+    const rows = await db
+      .select()
+      .from(empresasTable)
+      .where(eq(empresasTable.id, req.params.id))
+      .limit(1);
+    if (rows.length) return res.json(rows[0]);
+    const demo = DEMO_EMPRESAS.find((e) => e.id === req.params.id);
     if (demo) return res.json(demo);
-    req.log.error({ error }, "Error fetching empresa");
+    return res.status(404).json({ error: "Empresa no encontrada" });
+  } catch (err) {
+    const demo = DEMO_EMPRESAS.find((e) => e.id === req.params.id);
+    if (demo) return res.json(demo);
+    req.log.error({ err }, "Error fetching empresa");
     return res.status(404).json({ error: "Empresa no encontrada" });
   }
-  return res.json(data);
 });
 
 router.delete("/:id", async (req, res) => {
   const id = String(req.params.id);
 
-  if (DEMO_IDS.has(id)) {
+  try {
+    await db
+      .update(empresasTable)
+      .set({ activa: false, updated_at: new Date() })
+      .where(eq(empresasTable.id, id));
     removeDemoEmpresa(id);
-    req.log.info({ id }, "Demo empresa removed from in-memory list");
+    req.log.info({ id }, "Empresa soft-deleted");
     return res.json({ ok: true });
-  }
-
-  const { error } = await supabase
-    .from("empresas")
-    .update({ activa: false, updated_at: new Date().toISOString() })
-    .eq("id", id);
-
-  if (error) {
-    req.log.warn({ error, id }, "Supabase delete failed, removing from demo list");
+  } catch (err) {
+    req.log.warn({ err, id }, "DB delete failed, removing from demo list");
     removeDemoEmpresa(id);
     return res.json({ ok: true });
   }
-
-  removeDemoEmpresa(id);
-  req.log.info({ id }, "Empresa soft-deleted");
-  return res.json({ ok: true });
 });
 
 export default router;

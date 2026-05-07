@@ -1,5 +1,7 @@
 import { Router } from "express";
-import { supabase } from "../lib/supabase";
+import { db } from "@workspace/db";
+import { registrosPilaTable, empresasTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { callAI } from "../lib/ai";
 import { SKILL_EXTRACTOR_PILA } from "../lib/skills";
 import { DEMO_EMPRESAS } from "../lib/demo-data";
@@ -10,14 +12,15 @@ const router = Router();
 async function resolveEmpresaNombre(empresaId: string): Promise<string | null> {
   const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
   if (demo) return demo.nombre;
-
-  const { data } = await supabase
-    .from("empresas")
-    .select("nombre")
-    .eq("id", empresaId)
-    .single();
-
-  return (data as { nombre?: string } | null)?.nombre ?? null;
+  try {
+    const rows = await db.select({ nombre: empresasTable.nombre })
+      .from(empresasTable)
+      .where(eq(empresasTable.id, empresaId))
+      .limit(1);
+    return rows[0]?.nombre ?? null;
+  } catch {
+    return null;
+  }
 }
 
 router.post("/procesar", async (req, res) => {
@@ -67,23 +70,33 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
     }
   }
 
-  const { data: registro, error: insertError } = await supabase
-    .from("registros_pila")
-    .upsert(
-      {
+  let registroId: string;
+  try {
+    const rows = await db.insert(registrosPilaTable)
+      .values({
         empresa_id,
         periodo,
         estado: "recibido",
-        fecha_recepcion: new Date().toISOString(),
+        fecha_recepcion: new Date(),
         observaciones: JSON.stringify(resultado),
         drive_url: driveUrl ?? null,
-      },
-      { onConflict: "empresa_id,periodo" }
-    )
-    .select()
-    .single();
-
-  const registroId = insertError ? crypto.randomUUID() : registro.id;
+      })
+      .onConflictDoUpdate({
+        target: [registrosPilaTable.empresa_id, registrosPilaTable.periodo],
+        set: {
+          estado: "recibido",
+          fecha_recepcion: new Date(),
+          observaciones: JSON.stringify(resultado),
+          drive_url: driveUrl ?? null,
+          updated_at: new Date(),
+        },
+      })
+      .returning({ id: registrosPilaTable.id });
+    registroId = rows[0].id;
+  } catch (err) {
+    req.log.error({ err }, "Failed to persist registro PILA");
+    registroId = crypto.randomUUID();
+  }
 
   return res.json({
     registro_id: registroId,

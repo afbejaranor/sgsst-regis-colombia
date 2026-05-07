@@ -1,8 +1,10 @@
 import { Router, Request, Response } from "express";
-import { supabase } from "../lib/supabase";
+import { db } from "@workspace/db";
+import { matricesRiesgoTable, empresasTable } from "@workspace/db";
+import { eq, desc, max } from "drizzle-orm";
 import { callAI } from "../lib/ai";
 import { SKILL_MATRIZ_GTC45 } from "../lib/skills";
-import { getDemoMatrices, getDemoMatrizById, addDemoMatriz, updateDemoMatriz, DEMO_EMPRESAS } from "../lib/demo-data";
+import { DEMO_EMPRESAS } from "../lib/demo-data";
 import { generateMatrizDocx, generateMatrizPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 
@@ -11,12 +13,17 @@ const router = Router();
 async function resolveEmpresa(empresaId: string): Promise<EmpresaData> {
   const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
   if (demo) return demo;
-  const { data } = await supabase
-    .from("empresas")
-    .select("id, nombre, nit, codigo_ciiu, ciudad")
-    .eq("id", empresaId)
-    .single();
-  return (data as EmpresaData | null) ?? { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
+  try {
+    const rows = await db.select({
+      id: empresasTable.id,
+      nombre: empresasTable.nombre,
+      nit: empresasTable.nit,
+      codigo_ciiu: empresasTable.codigo_ciiu,
+      ciudad: empresasTable.ciudad,
+    }).from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+    if (rows.length) return rows[0] as EmpresaData;
+  } catch { /* ignore */ }
+  return { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
 }
 
 router.post("/generar", async (req, res) => {
@@ -48,45 +55,34 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
     return res.status(500).json({ error: "Error al generar la matriz con IA" });
   }
 
-  const existingInDemo = getDemoMatrices().filter((m) => m.empresa_id === empresa_id);
-  const { data: dbMatrices } = await supabase
-    .from("matrices_riesgo")
-    .select("version")
-    .eq("empresa_id", empresa_id)
-    .order("version", { ascending: false })
-    .limit(1);
-  const maxVersion = Math.max(
-    ...existingInDemo.map((m) => (m.version as number) ?? 0),
-    ...((dbMatrices ?? []) as Array<{ version: number }>).map((m) => m.version ?? 0),
-    0,
-  );
-  const newVersion = maxVersion + 1;
+  let newVersion = 1;
+  try {
+    const rows = await db.select({ v: max(matricesRiesgoTable.version) })
+      .from(matricesRiesgoTable)
+      .where(eq(matricesRiesgoTable.empresa_id, empresa_id));
+    newVersion = (rows[0]?.v ?? 0) + 1;
+  } catch { /* ignore */ }
 
-  const newMatriz: Record<string, unknown> = {
-    id: crypto.randomUUID(),
-    empresa_id,
-    codigo_ciiu: ciiu,
-    contenido_json: resultado,
-    estado: "borrador",
-    version: newVersion,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const { data: matriz, error: insertError } = await supabase
-    .from("matrices_riesgo")
-    .insert({ empresa_id, codigo_ciiu: ciiu, contenido_json: resultado, estado: "borrador", version: newVersion })
-    .select()
-    .single();
-
-  const saved = insertError ? newMatriz : matriz;
-  if (insertError) addDemoMatriz(newMatriz);
+  let matrizId: string;
+  try {
+    const rows = await db.insert(matricesRiesgoTable).values({
+      empresa_id,
+      codigo_ciiu: ciiu,
+      contenido_json: resultado,
+      estado: "borrador",
+      version: newVersion,
+    }).returning({ id: matricesRiesgoTable.id });
+    matrizId = rows[0].id;
+  } catch (err) {
+    req.log.error({ err }, "Failed to persist matriz to DB");
+    matrizId = crypto.randomUUID();
+  }
 
   const procList = (resultado.procesos as unknown[]) ?? [];
   const resumen = (resultado.resumen_por_nivel as Record<string, number>) ?? {};
 
   return res.json({
-    matriz_id: saved.id as string,
+    matriz_id: matrizId,
     ciiu,
     version: newVersion,
     actividad_economica: (resultado.actividad_economica as string) ?? "",
@@ -104,10 +100,12 @@ async function handleExportar(req: Request, res: Response) {
     return res.status(400).json({ error: "Formato inválido. Use 'docx' o 'pdf'." });
   }
 
-  let matriz = (getDemoMatrizById(matrizId) ?? null) as Record<string, unknown> | null;
-  if (!matriz) {
-    const { data } = await supabase.from("matrices_riesgo").select("*").eq("id", matrizId).single();
-    matriz = data ?? null;
+  let matriz: Record<string, unknown> | null = null;
+  try {
+    const rows = await db.select().from(matricesRiesgoTable).where(eq(matricesRiesgoTable.id, matrizId)).limit(1);
+    matriz = rows[0] as Record<string, unknown> ?? null;
+  } catch (err) {
+    req.log.error({ err }, "Error fetching matriz for export");
   }
   if (!matriz) {
     return res.status(404).json({ error: "Matriz no encontrada" });
@@ -115,7 +113,7 @@ async function handleExportar(req: Request, res: Response) {
 
   const empresa = await resolveEmpresa(matriz.empresa_id as string);
 
-  const ciiu = (matriz.codigo_ciiu ?? matriz.ciiu ?? "XXXX") as string;
+  const ciiu = (matriz.codigo_ciiu ?? "XXXX") as string;
   const version = (matriz.version as number) ?? 1;
   const fechaHoy = new Date().toISOString().slice(0, 10);
 
@@ -139,14 +137,12 @@ async function handleExportar(req: Request, res: Response) {
   }
 
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Matrices", fileName, buffer, contentType);
-  if (!driveUrl) {
-    req.log.warn({ matrizId, fileName }, "Drive upload failed — file not saved to Drive");
-  } else {
-    updateDemoMatriz(matrizId, { drive_url: driveUrl });
-    await supabase
-      .from("matrices_riesgo")
-      .update({ drive_url: driveUrl })
-      .eq("id", matrizId);
+  if (driveUrl) {
+    try {
+      await db.update(matricesRiesgoTable).set({ drive_url: driveUrl }).where(eq(matricesRiesgoTable.id, matrizId));
+    } catch (err) {
+      req.log.warn({ err }, "Failed to update drive_url for matriz");
+    }
   }
 
   res.setHeader("Content-Type", contentType);
@@ -159,17 +155,23 @@ router.get("/:matrizId/exportar", handleExportar);
 router.post("/:matrizId/exportar", handleExportar);
 
 router.get("/:empresaId", async (req, res) => {
-  const { data, error } = await supabase
-    .from("matrices_riesgo")
-    .select("id, empresa_id, version, codigo_ciiu, estado, drive_url, created_at")
-    .eq("empresa_id", req.params.empresaId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return res.json(getDemoMatrices().filter((m) => m.empresa_id === req.params.empresaId));
+  try {
+    const data = await db.select({
+      id: matricesRiesgoTable.id,
+      empresa_id: matricesRiesgoTable.empresa_id,
+      version: matricesRiesgoTable.version,
+      codigo_ciiu: matricesRiesgoTable.codigo_ciiu,
+      estado: matricesRiesgoTable.estado,
+      drive_url: matricesRiesgoTable.drive_url,
+      created_at: matricesRiesgoTable.created_at,
+    }).from(matricesRiesgoTable)
+      .where(eq(matricesRiesgoTable.empresa_id, req.params.empresaId))
+      .orderBy(desc(matricesRiesgoTable.created_at));
+    return res.json(data);
+  } catch (err) {
+    req.log.warn({ err }, "DB unavailable for matrices");
+    return res.json([]);
   }
-  const combined = [...(data ?? []), ...getDemoMatrices().filter((m) => m.empresa_id === req.params.empresaId)];
-  return res.json(combined);
 });
 
 export default router;

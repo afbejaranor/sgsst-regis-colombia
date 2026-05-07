@@ -1,8 +1,10 @@
 import { Router, Request, Response } from "express";
-import { supabase } from "../lib/supabase";
+import { db } from "@workspace/db";
+import { examenesMedicosTable, empresasTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
 import { callAI } from "../lib/ai";
 import { SKILL_EXTRACTOR_MEDICO } from "../lib/skills";
-import { getDemoExamenes, getDemoExamenById, addDemoExamen, DEMO_EMPRESAS } from "../lib/demo-data";
+import { DEMO_EMPRESAS } from "../lib/demo-data";
 import { generateExamenDocx, generateExamenPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 
@@ -11,12 +13,17 @@ const router = Router();
 async function resolveEmpresa(empresaId: string): Promise<EmpresaData> {
   const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
   if (demo) return demo;
-  const { data } = await supabase
-    .from("empresas")
-    .select("id, nombre, nit, codigo_ciiu, ciudad")
-    .eq("id", empresaId)
-    .single();
-  return (data as EmpresaData | null) ?? { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
+  try {
+    const rows = await db.select({
+      id: empresasTable.id,
+      nombre: empresasTable.nombre,
+      nit: empresasTable.nit,
+      codigo_ciiu: empresasTable.codigo_ciiu,
+      ciudad: empresasTable.ciudad,
+    }).from(empresasTable).where(eq(empresasTable.id, empresaId)).limit(1);
+    if (rows.length) return rows[0] as EmpresaData;
+  } catch { /* ignore */ }
+  return { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
 }
 
 router.post("/procesar", async (req, res) => {
@@ -52,45 +59,31 @@ Cédula trabajador: ${cedula_trabajador ?? "No especificado"}`;
     };
   }
 
-  const newExamen: Record<string, unknown> = {
-    id: crypto.randomUUID(),
-    empresa_id,
-    trabajador_id: trabajador_id ?? null,
-    nombre_trabajador: nombre_trabajador ?? null,
-    cedula_trabajador: cedula_trabajador ?? null,
-    cargo: (resultado.cargo as string) ?? null,
-    concepto: (resultado.concepto as string) ?? "pendiente",
-    tipo: (resultado.tipo_examen as string) ?? null,
-    fecha_examen: (resultado.fecha_examen as string) ?? null,
-    medico: (resultado.medico_nombre as string) ?? null,
-    restricciones: resultado.restricciones ?? [],
-    recomendaciones: resultado.recomendaciones ?? [],
-    texto_completo: JSON.stringify(resultado),
-    created_at: new Date().toISOString(),
-  };
-
-  const { data: examen, error: insertError } = await supabase
-    .from("examenes_medicos")
-    .insert({
+  let examenId: string;
+  try {
+    const rows = await db.insert(examenesMedicosTable).values({
       empresa_id,
       trabajador_id: trabajador_id ?? null,
-      concepto: newExamen.concepto,
-      tipo: newExamen.tipo,
-      fecha_examen: newExamen.fecha_examen,
-      medico: newExamen.medico,
-      restricciones: resultado.restricciones ?? [],
-      recomendaciones: resultado.recomendaciones ?? [],
+      nombre_trabajador: nombre_trabajador ?? null,
+      cedula_trabajador: cedula_trabajador ?? null,
+      cargo: (resultado.cargo as string) ?? null,
+      concepto: (resultado.concepto as string) ?? "pendiente",
+      tipo: (resultado.tipo_examen as string) ?? null,
+      fecha_examen: (resultado.fecha_examen as string) ?? null,
+      medico: (resultado.medico_nombre as string) ?? null,
+      restricciones: (resultado.restricciones as unknown[]) ?? [],
+      recomendaciones: (resultado.recomendaciones as unknown[]) ?? [],
       texto_completo: JSON.stringify(resultado),
-    })
-    .select()
-    .single();
-
-  const savedExamen = insertError ? newExamen : examen;
-  if (insertError) addDemoExamen(newExamen);
+    }).returning({ id: examenesMedicosTable.id });
+    examenId = rows[0].id;
+  } catch (err) {
+    req.log.error({ err }, "Failed to persist examen to DB");
+    examenId = crypto.randomUUID();
+  }
 
   return res.json({
-    examen_id: savedExamen.id as string,
-    nombre_trabajador: (newExamen.nombre_trabajador as string | null) ?? null,
+    examen_id: examenId,
+    nombre_trabajador: nombre_trabajador ?? null,
     concepto: resultado.concepto ?? "pendiente",
     restricciones: resultado.restricciones ?? [],
     recomendaciones: resultado.recomendaciones ?? [],
@@ -106,10 +99,12 @@ async function handleInforme(req: Request, res: Response) {
     return res.status(400).json({ error: "Formato inválido. Use 'docx' o 'pdf'." });
   }
 
-  let examen = (getDemoExamenById(examenId) ?? null) as Record<string, unknown> | null;
-  if (!examen) {
-    const { data } = await supabase.from("examenes_medicos").select("*").eq("id", examenId).single();
-    examen = data ?? null;
+  let examen: Record<string, unknown> | null = null;
+  try {
+    const rows = await db.select().from(examenesMedicosTable).where(eq(examenesMedicosTable.id, examenId)).limit(1);
+    examen = rows[0] as Record<string, unknown> ?? null;
+  } catch (err) {
+    req.log.error({ err }, "Error fetching examen for informe");
   }
   if (!examen) {
     return res.status(404).json({ error: "Examen no encontrado" });
@@ -141,17 +136,12 @@ async function handleInforme(req: Request, res: Response) {
   }
 
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Examenes", fileName, buffer, contentType);
-  if (!driveUrl) {
-    req.log.warn({ examenId, fileName }, "Drive upload failed — file not saved to Drive");
-  } else {
-    const demoEntry = getDemoExamenById(examenId);
-    if (demoEntry) {
-      demoEntry.drive_url = driveUrl;
+  if (driveUrl) {
+    try {
+      await db.update(examenesMedicosTable).set({ drive_url: driveUrl }).where(eq(examenesMedicosTable.id, examenId));
+    } catch (err) {
+      req.log.warn({ err }, "Failed to update drive_url for examen");
     }
-    await supabase
-      .from("examenes_medicos")
-      .update({ drive_url: driveUrl })
-      .eq("id", examenId);
   }
 
   res.setHeader("Content-Type", contentType);
@@ -164,17 +154,16 @@ router.get("/:examenId/informe", handleInforme);
 router.post("/:examenId/informe", handleInforme);
 
 router.get("/:empresaId", async (req, res) => {
-  const { data, error } = await supabase
-    .from("examenes_medicos")
-    .select("*")
-    .eq("empresa_id", req.params.empresaId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return res.json(getDemoExamenes().filter((e) => e.empresa_id === req.params.empresaId));
+  try {
+    const data = await db.select()
+      .from(examenesMedicosTable)
+      .where(eq(examenesMedicosTable.empresa_id, req.params.empresaId))
+      .orderBy(desc(examenesMedicosTable.created_at));
+    return res.json(data);
+  } catch (err) {
+    req.log.warn({ err }, "DB unavailable for examenes");
+    return res.json([]);
   }
-  const combined = [...(data ?? []), ...getDemoExamenes().filter((e) => e.empresa_id === req.params.empresaId)];
-  return res.json(combined);
 });
 
 export default router;
