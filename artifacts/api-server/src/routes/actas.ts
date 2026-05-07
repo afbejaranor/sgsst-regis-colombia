@@ -1,12 +1,23 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { supabase } from "../lib/supabase";
 import { callAI } from "../lib/ai";
 import { SKILL_ACTAS_COPASST } from "../lib/skills";
 import { DEMO_EMPRESA, getDemoActas, getDemoActaById, addDemoActa, DEMO_EMPRESAS } from "../lib/demo-data";
-import { generateActaDocx, generateActaPdf } from "../lib/doc-generator";
+import { generateActaDocx, generateActaPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 
 const router = Router();
+
+async function resolveEmpresa(empresaId: string): Promise<EmpresaData> {
+  const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
+  if (demo) return demo;
+  const { data } = await supabase
+    .from("empresas")
+    .select("id, nombre, nit, codigo_ciiu, ciudad")
+    .eq("id", empresaId)
+    .single();
+  return (data as EmpresaData | null) ?? { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
+}
 
 router.post("/generar", async (req, res) => {
   const { empresa_id, tipo_comite, fecha, hora_inicio, hora_fin, lugar, asistentes, puntos, transcripcion } = req.body as {
@@ -21,13 +32,13 @@ router.post("/generar", async (req, res) => {
     transcripcion?: string;
   };
 
-  const { data: empresa } = await supabase
+  const { data: empresaDb } = await supabase
     .from("empresas")
     .select("nombre, nit, ciudad")
     .eq("id", empresa_id)
     .single();
 
-  const empresaData = empresa ?? { nombre: DEMO_EMPRESA.nombre, nit: DEMO_EMPRESA.nit, ciudad: DEMO_EMPRESA.ciudad };
+  const empresaData = empresaDb ?? { nombre: DEMO_EMPRESA.nombre, nit: DEMO_EMPRESA.nit, ciudad: DEMO_EMPRESA.ciudad };
 
   const userMsg = `Genera el acta para:
 Empresa: ${empresaData.nombre} | NIT: ${empresaData.nit} | Ciudad: ${empresaData.ciudad}
@@ -98,7 +109,7 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
   });
 });
 
-router.get("/:actaId/exportar", async (req, res) => {
+async function handleExportar(req: Request, res: Response) {
   const { actaId } = req.params;
   const formato = ((req.query.formato as string) || "docx").toLowerCase();
 
@@ -111,9 +122,7 @@ router.get("/:actaId/exportar", async (req, res) => {
     return res.status(404).json({ error: "Acta no encontrada" });
   }
 
-  const empresa = DEMO_EMPRESAS.find((e) => e.id === acta!.empresa_id) ?? {
-    id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—",
-  };
+  const empresa = await resolveEmpresa(acta.empresa_id as string);
 
   const numeroActa = (acta.numero_acta ?? "ACTA") as string;
   const safeNum = numeroActa.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -146,7 +155,10 @@ router.get("/:actaId/exportar", async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   if (driveUrl) res.setHeader("X-Drive-Url", driveUrl);
   return res.send(buffer);
-});
+}
+
+router.get("/:actaId/exportar", handleExportar);
+router.post("/:actaId/exportar", handleExportar);
 
 router.get("/:empresaId", async (req, res) => {
   const { data, error } = await supabase

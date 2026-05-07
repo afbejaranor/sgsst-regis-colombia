@@ -1,12 +1,23 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { supabase } from "../lib/supabase";
 import { callAI } from "../lib/ai";
 import { SKILL_MATRIZ_GTC45 } from "../lib/skills";
 import { getDemoMatrices, getDemoMatrizById, addDemoMatriz, DEMO_EMPRESAS } from "../lib/demo-data";
-import { generateMatrizDocx, generateMatrizPdf } from "../lib/doc-generator";
+import { generateMatrizDocx, generateMatrizPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 
 const router = Router();
+
+async function resolveEmpresa(empresaId: string): Promise<EmpresaData> {
+  const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
+  if (demo) return demo;
+  const { data } = await supabase
+    .from("empresas")
+    .select("id, nombre, nit, codigo_ciiu, ciudad")
+    .eq("id", empresaId)
+    .single();
+  return (data as EmpresaData | null) ?? { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
+}
 
 router.post("/generar", async (req, res) => {
   const { empresa_id, ciiu, num_empleados, procesos, descripcion } = req.body as {
@@ -37,7 +48,6 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
     return res.status(500).json({ error: "Error al generar la matriz con IA" });
   }
 
-  // Determine version (increment from existing)
   const existingInDemo = getDemoMatrices().filter((m) => m.empresa_id === empresa_id);
   const { data: dbMatrices } = await supabase
     .from("matrices_riesgo")
@@ -87,7 +97,7 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
   });
 });
 
-router.get("/:matrizId/exportar", async (req, res) => {
+async function handleExportar(req: Request, res: Response) {
   const { matrizId } = req.params;
   const formato = ((req.query.formato as string) || "docx").toLowerCase();
 
@@ -100,9 +110,7 @@ router.get("/:matrizId/exportar", async (req, res) => {
     return res.status(404).json({ error: "Matriz no encontrada" });
   }
 
-  const empresa = DEMO_EMPRESAS.find((e) => e.id === matriz!.empresa_id) ?? {
-    id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—",
-  };
+  const empresa = await resolveEmpresa(matriz.empresa_id as string);
 
   const ciiu = (matriz.codigo_ciiu ?? matriz.ciiu ?? "XXXX") as string;
   const version = (matriz.version as number) ?? 1;
@@ -133,7 +141,10 @@ router.get("/:matrizId/exportar", async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   if (driveUrl) res.setHeader("X-Drive-Url", driveUrl);
   return res.send(buffer);
-});
+}
+
+router.get("/:matrizId/exportar", handleExportar);
+router.post("/:matrizId/exportar", handleExportar);
 
 router.get("/:empresaId", async (req, res) => {
   const { data, error } = await supabase

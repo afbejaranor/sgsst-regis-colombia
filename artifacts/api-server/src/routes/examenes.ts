@@ -1,12 +1,23 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { supabase } from "../lib/supabase";
 import { callAI } from "../lib/ai";
 import { SKILL_EXTRACTOR_MEDICO } from "../lib/skills";
 import { getDemoExamenes, getDemoExamenById, addDemoExamen, DEMO_EMPRESAS } from "../lib/demo-data";
-import { generateExamenDocx, generateExamenPdf } from "../lib/doc-generator";
+import { generateExamenDocx, generateExamenPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 
 const router = Router();
+
+async function resolveEmpresa(empresaId: string): Promise<EmpresaData> {
+  const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
+  if (demo) return demo;
+  const { data } = await supabase
+    .from("empresas")
+    .select("id, nombre, nit, codigo_ciiu, ciudad")
+    .eq("id", empresaId)
+    .single();
+  return (data as EmpresaData | null) ?? { id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—" };
+}
 
 router.post("/procesar", async (req, res) => {
   const { empresa_id, trabajador_id, pdf_base64, nombre_trabajador, cedula_trabajador } = req.body as {
@@ -88,7 +99,7 @@ Cédula trabajador: ${cedula_trabajador ?? "No especificado"}`;
   });
 });
 
-router.get("/:examenId/informe", async (req, res) => {
+async function handleInforme(req: Request, res: Response) {
   const { examenId } = req.params;
   const formato = ((req.query.formato as string) || "docx").toLowerCase();
 
@@ -101,13 +112,7 @@ router.get("/:examenId/informe", async (req, res) => {
     return res.status(404).json({ error: "Examen no encontrado" });
   }
 
-  const empresa = DEMO_EMPRESAS.find((e) => e.id === examen!.empresa_id) ?? {
-    id: "",
-    nombre: "Empresa",
-    nit: "—",
-    codigo_ciiu: "—",
-    ciudad: "—",
-  };
+  const empresa = await resolveEmpresa(examen.empresa_id as string);
 
   const nombreTrabajador = (examen.nombre_trabajador as string) ?? "Trabajador";
   const fechaHoy = new Date().toISOString().slice(0, 10);
@@ -138,7 +143,10 @@ router.get("/:examenId/informe", async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   if (driveUrl) res.setHeader("X-Drive-Url", driveUrl);
   return res.send(buffer);
-});
+}
+
+router.get("/:examenId/informe", handleInforme);
+router.post("/:examenId/informe", handleInforme);
 
 router.get("/:empresaId", async (req, res) => {
   const { data, error } = await supabase

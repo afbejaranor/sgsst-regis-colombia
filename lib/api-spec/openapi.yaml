@@ -199,6 +199,37 @@ paths:
                 format: binary
         "404":
           description: Examen no encontrado
+    post:
+      operationId: generarInformeExamen
+      tags: [examenes]
+      summary: Generar y descargar informe médico en .docx o .pdf
+      parameters:
+        - name: examenId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: formato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [docx, pdf]
+            default: docx
+      responses:
+        "200":
+          description: Documento generado
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Examen no encontrado
 
   /examenes/{empresaId}:
     get:
@@ -272,6 +303,37 @@ paths:
                 format: binary
         "404":
           description: Matriz no encontrada
+    post:
+      operationId: generarExportarMatriz
+      tags: [matrices]
+      summary: Generar y exportar matriz GTC-45 en .docx o .pdf
+      parameters:
+        - name: matrizId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: formato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [docx, pdf]
+            default: docx
+      responses:
+        "200":
+          description: Documento generado
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Matriz no encontrada
 
   /matrices/{empresaId}:
     get:
@@ -318,6 +380,37 @@ paths:
       operationId: exportarActa
       tags: [actas]
       summary: Exportar acta de comité en .docx o .pdf
+      parameters:
+        - name: actaId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: formato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [docx, pdf]
+            default: docx
+      responses:
+        "200":
+          description: Documento generado
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Acta no encontrada
+    post:
+      operationId: generarExportarActa
+      tags: [actas]
+      summary: Generar y exportar acta de comité en .docx o .pdf
       parameters:
         - name: actaId
           in: path
