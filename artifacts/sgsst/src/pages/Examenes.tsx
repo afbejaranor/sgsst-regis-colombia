@@ -14,11 +14,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Upload, Stethoscope, CheckCircle2, AlertTriangle, XCircle, Clock,
-  FolderOpen, FileText, ExternalLink, CloudUpload,
+  FolderOpen, FileText, ExternalLink, CloudUpload, Download, FileType2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { DRIVE_FOLDERS, DRIVE_DOCS } from "@/lib/drive-config";
+import { DRIVE_FOLDERS, DRIVE_DOCS, type DriveDoc } from "@/lib/drive-config";
 import { CompanyPageHeader } from "@/components/CompanyPageHeader";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
@@ -48,8 +48,10 @@ export default function Examenes() {
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const [lastResult, setLastResult] = useState<NonNullable<ReturnType<typeof useProcesarExamen>["data"]> | null>(null);
+  const [lastResult, setLastResult] = useState<(NonNullable<ReturnType<typeof useProcesarExamen>["data"]> & { nombre_trabajador?: string | null }) | null>(null);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error">("idle");
+  const [downloadingFormat, setDownloadingFormat] = useState<"docx" | "pdf" | null>(null);
+  const [newDriveDocs, setNewDriveDocs] = useState<DriveDoc[]>([]);
 
   const procesar = useProcesarExamen();
   const { data: examenes, isLoading } = useListExamenes(empresaId, {
@@ -57,7 +59,8 @@ export default function Examenes() {
   });
 
   const driveFolder = DRIVE_FOLDERS[empresaId]?.examenes ?? DRIVE_FOLDERS[DEMO_ID]?.examenes;
-  const driveDocs = DRIVE_DOCS[empresaId]?.examenes ?? DRIVE_DOCS[DEMO_ID]?.examenes ?? [];
+  const staticDriveDocs = DRIVE_DOCS[empresaId]?.examenes ?? DRIVE_DOCS[DEMO_ID]?.examenes ?? [];
+  const allDriveDocs = [...newDriveDocs, ...staticDriveDocs];
 
   function readFileAsBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -75,21 +78,21 @@ export default function Examenes() {
     }
     setUploadStatus("idle");
     const b64 = await readFileAsBase64(file);
-    const nombreArr = file.name.replace(".pdf", "").split("_");
+    const cleanName = file.name.replace(/\.pdf$/i, "").replace(/_/g, " ");
     procesar.mutate(
       {
         data: {
           empresa_id: empresaId,
           pdf_base64: b64,
-          nombre_trabajador: nombreArr[0] ?? undefined,
+          nombre_trabajador: cleanName,
         },
       },
       {
         onSuccess: (data) => {
-          setLastResult(data);
+          setLastResult({ ...data, nombre_trabajador: (data as Record<string, unknown>).nombre_trabajador as string | null ?? cleanName });
           setUploadStatus("success");
           qc.invalidateQueries({ queryKey: getListExamenesQueryKey(empresaId) });
-          toast({ title: "Documento cargado y procesado correctamente" });
+          toast({ title: "Examen procesado. Descarga el informe." });
         },
         onError: () => {
           setUploadStatus("error");
@@ -97,6 +100,48 @@ export default function Examenes() {
         },
       }
     );
+  }
+
+  async function handleDownloadInforme(formato: "docx" | "pdf") {
+    if (!lastResult?.examen_id) return;
+    setDownloadingFormat(formato);
+    try {
+      const resp = await fetch(`/api/examenes/${lastResult.examen_id}/informe?formato=${formato}`);
+      if (!resp.ok) throw new Error("Error generating report");
+
+      const driveUrl = resp.headers.get("X-Drive-Url");
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const nombreTrabajador = (lastResult.nombre_trabajador ?? "Trabajador").replace(/\s+/g, "_");
+      const fechaHoy = new Date().toISOString().slice(0, 10);
+      a.download = `Informe_Examen_${nombreTrabajador}_${fechaHoy}.${formato === "pdf" ? "pdf" : "docx"}`;
+      a.href = blobUrl;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+
+      if (driveUrl) {
+        setNewDriveDocs((prev) => [
+          {
+            nombre: a.download,
+            fecha: fechaHoy,
+            tipo: "Informe",
+            tamano: `${Math.round(blob.size / 1024)} KB`,
+            url: driveUrl,
+          },
+          ...prev,
+        ]);
+        toast({ title: "Informe generado y guardado en Drive" });
+      } else {
+        toast({ title: `Informe ${formato.toUpperCase()} descargado correctamente` });
+      }
+    } catch {
+      toast({ title: "Error al generar el informe", variant: "destructive" });
+    } finally {
+      setDownloadingFormat(null);
+    }
   }
 
   return (
@@ -116,7 +161,7 @@ export default function Examenes() {
               Cargar Nuevo Documento
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Carga el documento en PDF, el cual será guardado automáticamente en el Drive relacionado a la compañía.
+              Carga el PDF del examen médico. Se procesará con IA y se guardará en la carpeta Drive de la empresa.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -145,14 +190,13 @@ export default function Examenes() {
             {procesar.isPending && (
               <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
                 <Skeleton className="h-4 w-4 rounded-full flex-shrink-0" />
-                Analizando con IA y guardando en Drive...
+                Analizando con IA...
               </div>
             )}
-
             {uploadStatus === "success" && !procesar.isPending && (
               <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-md text-sm text-emerald-700">
                 <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-                Documento cargado y guardado exitosamente en Drive.
+                Examen analizado. Descarga el informe de seguimiento.
               </div>
             )}
             {uploadStatus === "error" && !procesar.isPending && (
@@ -186,7 +230,7 @@ export default function Examenes() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Restricciones</p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    {(lastResult.restricciones as string[]).map((r, i) => <li key={i}>{r}</li>)}
+                    {(lastResult.restricciones as string[]).map((r, i) => <li key={i}>{typeof r === "string" ? r : (r as Record<string,string>).descripcion ?? JSON.stringify(r)}</li>)}
                   </ul>
                 </div>
               )}
@@ -194,10 +238,47 @@ export default function Examenes() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-1">Recomendaciones</p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    {(lastResult.recomendaciones as string[]).map((r, i) => <li key={i}>{r}</li>)}
+                    {(lastResult.recomendaciones as string[]).map((r, i) => <li key={i}>{typeof r === "string" ? r : (r as Record<string,string>).descripcion ?? JSON.stringify(r)}</li>)}
                   </ul>
                 </div>
               )}
+
+              <div className="border-t pt-3">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">Informe de Seguimiento</p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    disabled={downloadingFormat !== null}
+                    onClick={() => handleDownloadInforme("docx")}
+                  >
+                    {downloadingFormat === "docx" ? (
+                      <Skeleton className="h-4 w-4 rounded-full" />
+                    ) : (
+                      <FileType2 className="h-4 w-4 text-blue-600" />
+                    )}
+                    Descargar .doc
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    disabled={downloadingFormat !== null}
+                    onClick={() => handleDownloadInforme("pdf")}
+                  >
+                    {downloadingFormat === "pdf" ? (
+                      <Skeleton className="h-4 w-4 rounded-full" />
+                    ) : (
+                      <Download className="h-4 w-4 text-red-600" />
+                    )}
+                    Descargar .pdf
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  El informe se guarda automáticamente en la carpeta Drive de la empresa.
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -232,11 +313,11 @@ export default function Examenes() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {driveDocs.map((doc, i) => (
+              {allDriveDocs.map((doc, i) => (
                 <TableRow key={i}>
                   <TableCell>
                     <a
-                      href={driveFolder}
+                      href={(doc as DriveDoc & { url?: string }).url ?? driveFolder}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"

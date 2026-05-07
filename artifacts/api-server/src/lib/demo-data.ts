@@ -278,6 +278,9 @@ let demoExamenes: Record<string, unknown>[] = [
   { id: "ex004", empresa_id: EMPRESA3_ID, trabajador_id: "t009", concepto: "apto", tipo: "Ingreso", fecha_examen: "2025-01-15", medico: "Dra. Lucía Bermúdez", restricciones: [], recomendaciones: [], created_at: "2025-01-15T11:00:00Z" },
 ];
 export function getDemoExamenes() { return demoExamenes; }
+export function getDemoExamenById(id: string): Record<string, unknown> | undefined {
+  return demoExamenes.find((e) => e.id === id);
+}
 export function addDemoExamen(examen: Record<string, unknown>) { demoExamenes = [examen, ...demoExamenes]; }
 
 let demoMatrices: Record<string, unknown>[] = [
@@ -301,6 +304,9 @@ let demoMatrices: Record<string, unknown>[] = [
   },
 ];
 export function getDemoMatrices() { return demoMatrices; }
+export function getDemoMatrizById(id: string): Record<string, unknown> | undefined {
+  return demoMatrices.find((m) => m.id === id);
+}
 export function addDemoMatriz(m: Record<string, unknown>) { demoMatrices = [m, ...demoMatrices]; }
 
 let demoActas: Record<string, unknown>[] = [
@@ -330,4 +336,7 @@ let demoActas: Record<string, unknown>[] = [
   },
 ];
 export function getDemoActas() { return demoActas; }
+export function getDemoActaById(id: string): Record<string, unknown> | undefined {
+  return demoActas.find((a) => a.id === id);
+}
 export function addDemoActa(a: Record<string, unknown>) { demoActas = [a, ...demoActas]; }

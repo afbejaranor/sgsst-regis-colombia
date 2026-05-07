@@ -2,7 +2,9 @@ import { Router } from "express";
 import { supabase } from "../lib/supabase";
 import { callAI } from "../lib/ai";
 import { SKILL_EXTRACTOR_MEDICO } from "../lib/skills";
-import { getDemoExamenes, addDemoExamen } from "../lib/demo-data";
+import { getDemoExamenes, getDemoExamenById, addDemoExamen, DEMO_EMPRESAS } from "../lib/demo-data";
+import { generateExamenDocx, generateExamenPdf } from "../lib/doc-generator";
+import { uploadToEmpresaFolder } from "../lib/drive-client";
 
 const router = Router();
 
@@ -22,7 +24,8 @@ router.post("/procesar", async (req, res) => {
   const userMsg = `El siguiente contenido es un examen médico ocupacional. Analízalo y extrae la información estructurada bajo Res. 2346/2007.
 
 PDF Base64 (primeros 500 chars): ${pdf_base64.substring(0, 500)}...
-Nombre trabajador: ${nombre_trabajador ?? "No especificado"}`;
+Nombre trabajador: ${nombre_trabajador ?? "No especificado"}
+Cédula trabajador: ${cedula_trabajador ?? "No especificado"}`;
 
   let resultado: Record<string, unknown>;
   try {
@@ -42,6 +45,9 @@ Nombre trabajador: ${nombre_trabajador ?? "No especificado"}`;
     id: crypto.randomUUID(),
     empresa_id,
     trabajador_id: trabajador_id ?? null,
+    nombre_trabajador: nombre_trabajador ?? null,
+    cedula_trabajador: cedula_trabajador ?? null,
+    cargo: (resultado.cargo as string) ?? null,
     concepto: (resultado.concepto as string) ?? "pendiente",
     tipo: (resultado.tipo_examen as string) ?? null,
     fecha_examen: (resultado.fecha_examen as string) ?? null,
@@ -72,13 +78,66 @@ Nombre trabajador: ${nombre_trabajador ?? "No especificado"}`;
   if (insertError) addDemoExamen(newExamen);
 
   return res.json({
-    examen_id: savedExamen.id,
+    examen_id: savedExamen.id as string,
+    nombre_trabajador: (newExamen.nombre_trabajador as string | null) ?? null,
     concepto: resultado.concepto ?? "pendiente",
     restricciones: resultado.restricciones ?? [],
     recomendaciones: resultado.recomendaciones ?? [],
     requiere_seguimiento: resultado.requiere_seguimiento ?? false,
     raw: resultado,
   });
+});
+
+router.get("/:examenId/informe", async (req, res) => {
+  const { examenId } = req.params;
+  const formato = ((req.query.formato as string) || "docx").toLowerCase();
+
+  let examen = (getDemoExamenById(examenId) ?? null) as Record<string, unknown> | null;
+  if (!examen) {
+    const { data } = await supabase.from("examenes_medicos").select("*").eq("id", examenId).single();
+    examen = data ?? null;
+  }
+  if (!examen) {
+    return res.status(404).json({ error: "Examen no encontrado" });
+  }
+
+  const empresa = DEMO_EMPRESAS.find((e) => e.id === examen!.empresa_id) ?? {
+    id: "",
+    nombre: "Empresa",
+    nit: "—",
+    codigo_ciiu: "—",
+    ciudad: "—",
+  };
+
+  const nombreTrabajador = (examen.nombre_trabajador as string) ?? "Trabajador";
+  const fechaHoy = new Date().toISOString().slice(0, 10);
+  const safeName = nombreTrabajador.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
+
+  let buffer: Buffer;
+  let contentType: string;
+  let fileName: string;
+
+  try {
+    if (formato === "pdf") {
+      buffer = await generateExamenPdf(examen, empresa);
+      contentType = "application/pdf";
+      fileName = `Informe_Examen_${safeName}_${fechaHoy}.pdf`;
+    } else {
+      buffer = await generateExamenDocx(examen, empresa);
+      contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      fileName = `Informe_Examen_${safeName}_${fechaHoy}.docx`;
+    }
+  } catch (err) {
+    req.log.error({ err }, "Document generation failed");
+    return res.status(500).json({ error: "Error al generar el documento" });
+  }
+
+  const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Examenes", fileName, buffer, contentType);
+
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  if (driveUrl) res.setHeader("X-Drive-Url", driveUrl);
+  return res.send(buffer);
 });
 
 router.get("/:empresaId", async (req, res) => {

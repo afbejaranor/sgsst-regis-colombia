@@ -11,6 +11,7 @@ import type { ExamenProcesadoRestriccionesItem } from "./examenProcesadoRestricc
 
 export interface ExamenProcesado {
   examen_id: string;
+  nombre_trabajador?: string | null;
   concepto: string;
   restricciones: ExamenProcesadoRestriccionesItem[];
   recomendaciones: ExamenProcesadoRecomendacionesItem[];

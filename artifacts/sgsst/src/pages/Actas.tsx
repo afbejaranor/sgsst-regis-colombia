@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import {
   FileText, Sparkles, Plus, Trash2, ScrollText,
-  Download, Upload, CheckCircle2, CloudUpload,
+  Download, Upload, CheckCircle2, CloudUpload, ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,8 @@ export default function Actas() {
   const [lastResult, setLastResult] = useState<NonNullable<ReturnType<typeof useGenerarActa>["data"]> | null>(null);
   const [tipoComite, setTipoComite] = useState<"COPASST" | "convivencia">("COPASST");
   const [uploadActaStatus, setUploadActaStatus] = useState<"idle" | "success" | "error">("idle");
+  const [downloadingFormat, setDownloadingFormat] = useState<"doc" | "pdf" | null>(null);
+  const [actaDriveUrl, setActaDriveUrl] = useState<string | null>(null);
 
   const generar = useGenerarActa();
   const { data: actas, isLoading } = useListActas(empresaId, {
@@ -103,6 +105,7 @@ export default function Actas() {
       {
         onSuccess: (data) => {
           setLastResult(data);
+          setActaDriveUrl(null);
           qc.invalidateQueries({ queryKey: getListActasQueryKey(empresaId) });
           toast({ title: "Acta generada con IA" });
         },
@@ -111,21 +114,30 @@ export default function Actas() {
     );
   }
 
-  function downloadAs(format: "doc" | "pdf") {
-    if (!lastResult) return;
-    const content = lastResult.texto_acta_completo ?? `Acta ${lastResult.numero_acta}`;
-    const mimeType = format === "pdf"
-      ? "application/pdf"
-      : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  async function downloadAs(format: "doc" | "pdf") {
+    if (!lastResult?.acta_id) return;
     const ext = format === "pdf" ? "pdf" : "docx";
-    const blob = new Blob([content as string], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${lastResult.numero_acta}.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: `Descargando acta en formato .${ext}` });
+    setDownloadingFormat(format);
+    try {
+      const resp = await fetch(`/api/actas/${lastResult.acta_id}/exportar?formato=${ext}`);
+      if (!resp.ok) throw new Error("Error generating document");
+      const driveUrl = resp.headers.get("X-Drive-Url");
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${lastResult.numero_acta ?? "Acta"}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      if (driveUrl) setActaDriveUrl(driveUrl);
+      toast({ title: driveUrl ? "Documento guardado en Drive" : `Acta .${ext} descargada` });
+    } catch {
+      toast({ title: "Error al generar el documento", variant: "destructive" });
+    } finally {
+      setDownloadingFormat(null);
+    }
   }
 
   function handleUploadActa(file: File) {
@@ -254,13 +266,36 @@ export default function Actas() {
                   </CardTitle>
                   <p className="text-xs text-muted-foreground capitalize mt-1">{lastResult.tipo_comite} · {lastResult.fecha}</p>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => downloadAs("doc")} title="Descargar .docx">
-                    <Download className="h-3.5 w-3.5 mr-1.5" />.doc
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => downloadAs("pdf")} title="Descargar PDF">
-                    <Download className="h-3.5 w-3.5 mr-1.5" />.pdf
-                  </Button>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadAs("doc")}
+                      disabled={!!downloadingFormat}
+                      title="Descargar .docx"
+                      data-testid="btn-download-acta-docx"
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                      {downloadingFormat === "doc" ? "…" : ".doc"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadAs("pdf")}
+                      disabled={!!downloadingFormat}
+                      title="Descargar PDF"
+                      data-testid="btn-download-acta-pdf"
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                      {downloadingFormat === "pdf" ? "…" : ".pdf"}
+                    </Button>
+                  </div>
+                  {actaDriveUrl && (
+                    <a href={actaDriveUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-emerald-700 hover:underline">
+                      <ExternalLink className="h-3 w-3" />Ver en Drive
+                    </a>
+                  )}
                 </div>
               </div>
             </CardHeader>

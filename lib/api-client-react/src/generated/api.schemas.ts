@@ -135,6 +135,7 @@ export type ExamenProcesadoRaw = { [key: string]: unknown };
 
 export interface ExamenProcesado {
   examen_id: string;
+  nombre_trabajador?: string | null;
   concepto: string;
   restricciones: ExamenProcesadoRestriccionesItem[];
   recomendaciones: ExamenProcesadoRecomendacionesItem[];
@@ -169,6 +170,7 @@ export type MatrizGeneradaContenido = { [key: string]: unknown };
 export interface MatrizGenerada {
   matriz_id: string;
   ciiu: string;
+  version: number;
   actividad_economica: string;
   num_peligros: number;
   niveles_riesgo: MatrizGeneradaNivelesRiesgo;

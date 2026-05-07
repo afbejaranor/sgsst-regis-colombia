@@ -519,6 +519,9 @@ components:
       properties:
         examen_id:
           type: string
+        nombre_trabajador:
+          type: string
+          nullable: true
         concepto:
           type: string
         restricciones:
@@ -590,6 +593,8 @@ components:
           type: string
         ciiu:
           type: string
+        version:
+          type: integer
         actividad_economica:
           type: string
         num_peligros:
@@ -604,7 +609,7 @@ components:
         contenido:
           type: object
           additionalProperties: true
-      required: [matriz_id, ciiu, actividad_economica, num_peligros, niveles_riesgo, peligros_prioritarios, contenido]
+      required: [matriz_id, ciiu, version, actividad_economica, num_peligros, niveles_riesgo, peligros_prioritarios, contenido]
 
     Matriz:
       type: object

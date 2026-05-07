@@ -2,7 +2,9 @@ import { Router } from "express";
 import { supabase } from "../lib/supabase";
 import { callAI } from "../lib/ai";
 import { SKILL_ACTAS_COPASST } from "../lib/skills";
-import { DEMO_EMPRESA, getDemoActas, addDemoActa } from "../lib/demo-data";
+import { DEMO_EMPRESA, getDemoActas, getDemoActaById, addDemoActa, DEMO_EMPRESAS } from "../lib/demo-data";
+import { generateActaDocx, generateActaPdf } from "../lib/doc-generator";
+import { uploadToEmpresaFolder } from "../lib/drive-client";
 
 const router = Router();
 
@@ -52,12 +54,19 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
     id: crypto.randomUUID(),
     empresa_id,
     numero_acta: numeroActa,
+    tipo_comite,
     fecha_reunion: fecha,
+    fecha: fecha,
+    hora_inicio,
+    hora_fin,
     lugar,
     puntos_tratados: puntos,
-    acta_generada: resultado.texto_acta_completo ?? JSON.stringify(resultado),
-    estado: "borrador",
+    puntos_orden: puntos,
     asistentes_confirmados: asistentes,
+    asistentes,
+    acta_generada: resultado.texto_acta_completo ?? JSON.stringify(resultado),
+    texto_acta: resultado.texto_acta_completo ?? JSON.stringify(resultado),
+    estado: "borrador",
     created_at: new Date().toISOString(),
   };
 
@@ -79,7 +88,7 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
   if (insertError) addDemoActa(newActa);
 
   return res.json({
-    acta_id: insertError ? newActa.id : acta.id,
+    acta_id: insertError ? (newActa.id as string) : acta.id,
     numero_acta: numeroActa,
     tipo_comite,
     fecha,
@@ -87,6 +96,56 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
     texto_acta_completo: (resultado.texto_acta_completo as string) ?? JSON.stringify(resultado),
     raw: resultado,
   });
+});
+
+router.get("/:actaId/exportar", async (req, res) => {
+  const { actaId } = req.params;
+  const formato = ((req.query.formato as string) || "docx").toLowerCase();
+
+  let acta = (getDemoActaById(actaId) ?? null) as Record<string, unknown> | null;
+  if (!acta) {
+    const { data } = await supabase.from("actas_comite").select("*").eq("id", actaId).single();
+    acta = data ?? null;
+  }
+  if (!acta) {
+    return res.status(404).json({ error: "Acta no encontrada" });
+  }
+
+  const empresa = DEMO_EMPRESAS.find((e) => e.id === acta!.empresa_id) ?? {
+    id: "", nombre: "Empresa", nit: "—", codigo_ciiu: "—", ciudad: "—",
+  };
+
+  const numeroActa = (acta.numero_acta ?? "ACTA") as string;
+  const safeNum = numeroActa.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const fechaHoy = new Date().toISOString().slice(0, 10);
+
+  let buffer: Buffer;
+  let contentType: string;
+  let fileName: string;
+
+  try {
+    if (formato === "pdf") {
+      buffer = await generateActaPdf(acta, empresa);
+      contentType = "application/pdf";
+      fileName = `Acta_${safeNum}_${fechaHoy}.pdf`;
+    } else {
+      buffer = await generateActaDocx(acta, empresa);
+      contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      fileName = `Acta_${safeNum}_${fechaHoy}.docx`;
+    }
+  } catch (err) {
+    req.log.error({ err }, "Acta document generation failed");
+    return res.status(500).json({ error: "Error al generar el documento" });
+  }
+
+  const tipoComite = (acta.tipo_comite as string) ?? "COPASST";
+  const moduloFolder = tipoComite.toLowerCase().includes("convivencia") ? "Actas_Convivencia" : "Actas_COPASST";
+  const driveUrl = await uploadToEmpresaFolder(empresa.nombre, moduloFolder, fileName, buffer, contentType);
+
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  if (driveUrl) res.setHeader("X-Drive-Url", driveUrl);
+  return res.send(buffer);
 });
 
 router.get("/:empresaId", async (req, res) => {

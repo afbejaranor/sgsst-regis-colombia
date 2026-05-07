@@ -173,6 +173,7 @@ export const ProcesarExamenBody = zod.object({
 
 export const ProcesarExamenResponse = zod.object({
   examen_id: zod.string(),
+  nombre_trabajador: zod.string().nullish(),
   concepto: zod.string(),
   restricciones: zod.array(zod.record(zod.string(), zod.unknown())),
   recomendaciones: zod.array(zod.record(zod.string(), zod.unknown())),
@@ -214,6 +215,7 @@ export const GenerarMatrizBody = zod.object({
 export const GenerarMatrizResponse = zod.object({
   matriz_id: zod.string(),
   ciiu: zod.string(),
+  version: zod.number(),
   actividad_economica: zod.string(),
   num_peligros: zod.number(),
   niveles_riesgo: zod.record(zod.string(), zod.unknown()),

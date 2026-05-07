@@ -11,6 +11,7 @@ import type { MatrizGeneradaNivelesRiesgo } from "./matrizGeneradaNivelesRiesgo"
 export interface MatrizGenerada {
   matriz_id: string;
   ciiu: string;
+  version: number;
   actividad_economica: string;
   num_peligros: number;
   niveles_riesgo: MatrizGeneradaNivelesRiesgo;

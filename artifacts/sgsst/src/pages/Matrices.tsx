@@ -16,10 +16,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ShieldAlert, Sparkles, AlertTriangle, Download } from "lucide-react";
+import { ShieldAlert, Sparkles, AlertTriangle, Download, FileType2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CompanyPageHeader } from "@/components/CompanyPageHeader";
+import { DRIVE_FOLDERS } from "@/lib/drive-config";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
@@ -49,7 +50,9 @@ export default function Matrices() {
   const empresaId = params.id ?? DEMO_ID;
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [lastResult, setLastResult] = useState<NonNullable<ReturnType<typeof useGenerarMatriz>["data"]> | null>(null);
+  const [lastResult, setLastResult] = useState<(NonNullable<ReturnType<typeof useGenerarMatriz>["data"]> & { version?: number }) | null>(null);
+  const [downloadingFormat, setDownloadingFormat] = useState<"docx" | "pdf" | null>(null);
+  const [matrizDriveUrl, setMatrizDriveUrl] = useState<string | null>(null);
 
   const generar = useGenerarMatriz();
   const { data: empresa } = useGetEmpresa(empresaId);
@@ -93,7 +96,8 @@ export default function Matrices() {
       },
       {
         onSuccess: (data) => {
-          setLastResult(data);
+          setLastResult(data as typeof data & { version?: number });
+          setMatrizDriveUrl(null);
           qc.invalidateQueries({ queryKey: getListMatricesQueryKey(empresaId) });
           toast({ title: "Matriz GTC-45 generada con IA" });
         },
@@ -102,20 +106,29 @@ export default function Matrices() {
     );
   }
 
-  function handleDownload() {
-    if (!lastResult) return;
-    const content = `MATRIZ DE PELIGROS Y RIESGOS - GTC-45\n` +
-      `Empresa: ${empresa?.nombre ?? ""}\nNIT: ${empresa?.nit ?? ""}\n` +
-      `CIIU: ${lastResult.ciiu}\nActividad: ${lastResult.actividad_economica}\n\n` +
-      `Generado: ${new Date().toLocaleDateString("es-CO")}\n\n` +
-      `[Exportación simulada - integre con librería de documentos para .docx real]`;
-    const blob = new Blob([content], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Matriz_GTC45_${empresa?.nombre?.replace(/\s/g, "_") ?? "empresa"}_${new Date().toISOString().split("T")[0]}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function handleDownload(formato: "docx" | "pdf") {
+    if (!lastResult?.matriz_id) return;
+    setDownloadingFormat(formato);
+    try {
+      const resp = await fetch(`/api/matrices/${lastResult.matriz_id}/exportar?formato=${formato}`);
+      if (!resp.ok) throw new Error("Error generating document");
+      const driveUrl = resp.headers.get("X-Drive-Url");
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `Matriz_GTC45_${lastResult.ciiu}_v${lastResult.version ?? 1}_${new Date().toISOString().slice(0, 10)}.${formato}`;
+      a.href = blobUrl;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      if (driveUrl) setMatrizDriveUrl(driveUrl);
+      toast({ title: driveUrl ? "Documento guardado en Drive" : `Documento .${formato} descargado` });
+    } catch {
+      toast({ title: "Error al generar el documento", variant: "destructive" });
+    } finally {
+      setDownloadingFormat(null);
+    }
   }
 
   return (
@@ -182,18 +195,44 @@ export default function Matrices() {
                   {...register("descripcion")}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button type="submit" className="flex-1" disabled={generar.isPending} data-testid="btn-generar-matriz">
                   <Sparkles className="h-4 w-4 mr-2" />
                   {generar.isPending ? "Generando con IA..." : "Generar Matriz"}
                 </Button>
                 {lastResult && (
-                  <Button type="button" variant="outline" onClick={handleDownload} title="Descargar .docx">
-                    <Download className="h-4 w-4 mr-2" />
-                    .docx
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleDownload("docx")}
+                      disabled={!!downloadingFormat}
+                      title="Descargar .docx"
+                      data-testid="btn-download-matriz-docx"
+                    >
+                      <Download className="h-4 w-4 mr-1.5" />
+                      {downloadingFormat === "docx" ? "…" : ".docx"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleDownload("pdf")}
+                      disabled={!!downloadingFormat}
+                      title="Descargar PDF"
+                      data-testid="btn-download-matriz-pdf"
+                    >
+                      <FileType2 className="h-4 w-4 mr-1.5" />
+                      {downloadingFormat === "pdf" ? "…" : ".pdf"}
+                    </Button>
+                  </>
                 )}
               </div>
+              {matrizDriveUrl && (
+                <a href={matrizDriveUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-emerald-700 hover:underline mt-1">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Ver en Google Drive
+                </a>
+              )}
             </form>
           </CardContent>
         </Card>
