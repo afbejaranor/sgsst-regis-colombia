@@ -95,7 +95,7 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
 
   const numeroActa = (resultado.numero_acta as string) ?? `${tipo_comite}-${fecha.substring(0, 7)}-v${version}`;
 
-  const comprimisosArr = Array.isArray(resultado.compromisos) ? (resultado.compromisos as unknown[]) : [];
+  const compromisosArr = Array.isArray(resultado.compromisos) ? (resultado.compromisos as unknown[]) : [];
 
   const newActa: Record<string, unknown> = {
     id: crypto.randomUUID(),
@@ -113,7 +113,7 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
     puntos_orden: puntos,
     asistentes_confirmados: asistentes,
     asistentes,
-    compromisos: comprimisosArr,
+    compromisos: compromisosArr,
     acta_generada: resultado.texto_acta_completo ?? JSON.stringify(resultado),
     texto_acta: resultado.texto_acta_completo ?? JSON.stringify(resultado),
     estado: "borrador",
@@ -135,7 +135,7 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
       acta_generada: resultado.texto_acta_completo ?? JSON.stringify(resultado),
       estado: "borrador",
       asistentes_confirmados: asistentes,
-      compromisos: comprimisosArr,
+      compromisos: compromisosArr,
     })
     .select()
     .single();
