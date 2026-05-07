@@ -895,7 +895,7 @@ export async function generateExamenPdf(examen: ExamenData, empresa: EmpresaData
   const [cr, cg, cb] = CONCEPTO_COLORS_PDF[concepto] ?? [0.53, 0.53, 0.53];
   const boxW = boldFont.widthOfTextAtSize(conceptoLabel, 12) + 28;
   ensureSpace(32);
-  page.drawRectangle({ x: M, y: y - 6, width: boxW, height: 28, color: rgb(cr, cg, cb), borderRadius: 3 });
+  page.drawRectangle({ x: M, y: y - 6, width: boxW, height: 28, color: rgb(cr, cg, cb) });
   page.drawText(conceptoLabel, { x: M + 14, y: y + 3, size: 12, font: boldFont, color: rgb(1, 1, 1) });
   y -= 36;
 

@@ -80,15 +80,10 @@ export async function uploadFileToDrive(
     {
       method: "POST",
       headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-      body: bodyBuffer as unknown as BodyInit,
+      body: bodyBuffer as unknown as ArrayBuffer,
     },
   );
   const uploaded = (await uploadRes.json()) as DriveFile;
-
-  await drivePost(`/drive/v3/files/${uploaded.id}/permissions`, {
-    role: "reader",
-    type: "anyone",
-  });
 
   const fileInfo = await driveGet<DriveFile>(`/drive/v3/files/${uploaded.id}?fields=id,webViewLink`);
   return { id: fileInfo.id, webViewLink: fileInfo.webViewLink ?? "" };

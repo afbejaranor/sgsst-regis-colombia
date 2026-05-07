@@ -121,11 +121,11 @@ router.get("/:examenId/informe", async (req, res) => {
     if (formato === "pdf") {
       buffer = await generateExamenPdf(examen, empresa);
       contentType = "application/pdf";
-      fileName = `Informe_Examen_${safeName}_${fechaHoy}.pdf`;
+      fileName = `Examen_${safeName}_${fechaHoy}.pdf`;
     } else {
       buffer = await generateExamenDocx(examen, empresa);
       contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-      fileName = `Informe_Examen_${safeName}_${fechaHoy}.docx`;
+      fileName = `Examen_${safeName}_${fechaHoy}.docx`;
     }
   } catch (err) {
     req.log.error({ err }, "Document generation failed");

@@ -167,6 +167,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ExamenProcesado"
 
+  /examenes/{examenId}/informe:
+    get:
+      operationId: descargarInformeExamen
+      tags: [examenes]
+      summary: Descargar informe médico en .docx o .pdf
+      parameters:
+        - name: examenId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: formato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [docx, pdf]
+            default: docx
+      responses:
+        "200":
+          description: Documento generado
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Examen no encontrado
+
   /examenes/{empresaId}:
     get:
       operationId: listExamenes
@@ -207,6 +240,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/MatrizGenerada"
 
+  /matrices/{matrizId}/exportar:
+    get:
+      operationId: exportarMatriz
+      tags: [matrices]
+      summary: Exportar matriz GTC-45 en .docx o .pdf
+      parameters:
+        - name: matrizId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: formato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [docx, pdf]
+            default: docx
+      responses:
+        "200":
+          description: Documento generado
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Matriz no encontrada
+
   /matrices/{empresaId}:
     get:
       operationId: listMatrices
@@ -246,6 +312,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ActaGenerada"
+
+  /actas/{actaId}/exportar:
+    get:
+      operationId: exportarActa
+      tags: [actas]
+      summary: Exportar acta de comité en .docx o .pdf
+      parameters:
+        - name: actaId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: formato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [docx, pdf]
+            default: docx
+      responses:
+        "200":
+          description: Documento generado
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Acta no encontrada
 
   /actas/{empresaId}:
     get:
