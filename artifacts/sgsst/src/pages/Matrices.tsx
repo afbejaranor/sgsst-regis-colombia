@@ -284,11 +284,12 @@ export default function Matrices() {
                   <TableHead>CIIU</TableHead>
                   <TableHead>Versión</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Drive</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(!matrices || matrices.length === 0) ? (
-                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-10">Sin matrices generadas</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Sin matrices generadas</TableCell></TableRow>
                 ) : matrices.map((m) => (
                   <TableRow key={m.id} data-testid={`matriz-row-${m.id}`}>
                     <TableCell className="text-sm">{new Date(m.created_at!).toLocaleDateString("es-CO")}</TableCell>
@@ -296,6 +297,15 @@ export default function Matrices() {
                     <TableCell className="text-sm">v{m.version}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs capitalize">{m.estado}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {(m as { drive_url?: string | null }).drive_url ? (
+                        <a href={(m as { drive_url?: string | null }).drive_url!} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-emerald-700 hover:underline">
+                          <ExternalLink className="h-3 w-3" />Ver archivo
+                        </a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

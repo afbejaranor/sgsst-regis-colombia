@@ -184,6 +184,7 @@ export interface Matriz {
   version: number;
   codigo_ciiu?: string | null;
   estado: string;
+  drive_url?: string | null;
   created_at: string;
 }
 
@@ -262,6 +263,7 @@ export interface PilaProcesada {
   estado: string;
   num_afiliados: PilaProcesadaNumAfiliados;
   alertas: string[];
+  drive_url?: string | null;
   raw?: PilaProcesadaRaw;
 }
 

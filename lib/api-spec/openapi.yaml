@@ -846,6 +846,9 @@ components:
           nullable: true
         estado:
           type: string
+        drive_url:
+          type: string
+          nullable: true
         created_at:
           type: string
       required: [id, empresa_id, version, estado, created_at]
@@ -980,6 +983,9 @@ components:
           type: array
           items:
             type: string
+        drive_url:
+          type: string
+          nullable: true
         raw:
           type: object
           additionalProperties: true

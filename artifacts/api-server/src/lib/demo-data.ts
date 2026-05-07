@@ -308,6 +308,10 @@ export function getDemoMatrizById(id: string): Record<string, unknown> | undefin
   return demoMatrices.find((m) => m.id === id);
 }
 export function addDemoMatriz(m: Record<string, unknown>) { demoMatrices = [m, ...demoMatrices]; }
+export function updateDemoMatriz(id: string, fields: Record<string, unknown>) {
+  const idx = demoMatrices.findIndex((m) => m.id === id);
+  if (idx !== -1) demoMatrices[idx] = { ...demoMatrices[idx], ...fields };
+}
 
 let demoActas: Record<string, unknown>[] = [
   {

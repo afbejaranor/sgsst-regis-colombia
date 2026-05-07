@@ -141,7 +141,18 @@ async function handleInforme(req: Request, res: Response) {
   }
 
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Examenes", fileName, buffer, contentType);
-  if (!driveUrl) req.log.warn({ examenId, fileName }, "Drive upload failed — file not saved to Drive");
+  if (!driveUrl) {
+    req.log.warn({ examenId, fileName }, "Drive upload failed — file not saved to Drive");
+  } else {
+    const demoEntry = getDemoExamenById(examenId);
+    if (demoEntry) {
+      demoEntry.drive_url = driveUrl;
+    }
+    await supabase
+      .from("examenes_medicos")
+      .update({ drive_url: driveUrl })
+      .eq("id", examenId);
+  }
 
   res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);

@@ -14,5 +14,6 @@ export interface PilaProcesada {
   estado: string;
   num_afiliados: PilaProcesadaNumAfiliados;
   alertas: string[];
+  drive_url?: string | null;
   raw?: PilaProcesadaRaw;
 }

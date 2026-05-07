@@ -80,6 +80,7 @@ export default function Pila() {
   });
   const [lastResult, setLastResult] = useState<NonNullable<ReturnType<typeof useProcesarPila>["data"]> | null>(null);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error">("idle");
+  const [pilaDriveUrl, setPilaDriveUrl] = useState<string | null>(null);
 
   const procesar = useProcesarPila();
   const tracking = PILA_TRACKING[empresaId] ?? PILA_TRACKING[DEMO_ID];
@@ -114,7 +115,9 @@ export default function Pila() {
         onSuccess: (data) => {
           setLastResult(data);
           setUploadStatus("success");
-          toast({ title: "Planilla procesada y archivada en Drive" });
+          const url = (data as { drive_url?: string | null }).drive_url ?? null;
+          setPilaDriveUrl(url);
+          toast({ title: url ? "Planilla procesada y archivada en Drive" : "Planilla procesada exitosamente" });
         },
         onError: () => {
           setUploadStatus("error");
@@ -259,7 +262,12 @@ export default function Pila() {
             {uploadStatus === "success" && !procesar.isPending && (
               <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-md text-sm text-emerald-700">
                 <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-                Planilla cargada y archivada exitosamente en Drive.
+                <span>Planilla cargada y archivada exitosamente{pilaDriveUrl ? " en Drive" : ""}.</span>
+                {pilaDriveUrl && (
+                  <a href={pilaDriveUrl} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 underline text-xs">
+                    <ExternalLink className="h-3 w-3" />Abrir en Drive
+                  </a>
+                )}
               </div>
             )}
             {uploadStatus === "error" && !procesar.isPending && (

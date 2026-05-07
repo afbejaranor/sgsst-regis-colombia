@@ -294,6 +294,7 @@ export const ListMatricesResponseItem = zod.object({
   version: zod.number(),
   codigo_ciiu: zod.string().nullish(),
   estado: zod.string(),
+  drive_url: zod.string().nullish(),
   created_at: zod.string(),
 });
 export const ListMatricesResponse = zod.array(ListMatricesResponseItem);
@@ -404,6 +405,7 @@ export const ProcesarPilaResponse = zod.object({
   estado: zod.string(),
   num_afiliados: zod.record(zod.string(), zod.unknown()),
   alertas: zod.array(zod.string()),
+  drive_url: zod.string().nullish(),
   raw: zod.record(zod.string(), zod.unknown()).optional(),
 });
 

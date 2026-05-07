@@ -12,5 +12,6 @@ export interface Matriz {
   version: number;
   codigo_ciiu?: string | null;
   estado: string;
+  drive_url?: string | null;
   created_at: string;
 }

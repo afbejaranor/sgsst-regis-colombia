@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { supabase } from "../lib/supabase";
 import { callAI } from "../lib/ai";
 import { SKILL_MATRIZ_GTC45 } from "../lib/skills";
-import { getDemoMatrices, getDemoMatrizById, addDemoMatriz, DEMO_EMPRESAS } from "../lib/demo-data";
+import { getDemoMatrices, getDemoMatrizById, addDemoMatriz, updateDemoMatriz, DEMO_EMPRESAS } from "../lib/demo-data";
 import { generateMatrizDocx, generateMatrizPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 
@@ -139,7 +139,15 @@ async function handleExportar(req: Request, res: Response) {
   }
 
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Matrices", fileName, buffer, contentType);
-  if (!driveUrl) req.log.warn({ matrizId, fileName }, "Drive upload failed — file not saved to Drive");
+  if (!driveUrl) {
+    req.log.warn({ matrizId, fileName }, "Drive upload failed — file not saved to Drive");
+  } else {
+    updateDemoMatriz(matrizId, { drive_url: driveUrl });
+    await supabase
+      .from("matrices_riesgo")
+      .update({ drive_url: driveUrl })
+      .eq("id", matrizId);
+  }
 
   res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
@@ -153,7 +161,7 @@ router.post("/:matrizId/exportar", handleExportar);
 router.get("/:empresaId", async (req, res) => {
   const { data, error } = await supabase
     .from("matrices_riesgo")
-    .select("id, empresa_id, version, codigo_ciiu, estado, created_at")
+    .select("id, empresa_id, version, codigo_ciiu, estado, drive_url, created_at")
     .eq("empresa_id", req.params.empresaId)
     .order("created_at", { ascending: false });
 
