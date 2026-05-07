@@ -2,7 +2,7 @@ export const DEMO_EMPRESA_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 export const EMPRESA2_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
 export const EMPRESA3_ID = "c3d4e5f6-a7b8-9012-cdef-123456789012";
 
-export const DEMO_EMPRESAS = [
+const SEED_EMPRESAS = [
   {
     id: DEMO_EMPRESA_ID,
     nombre: "Comercializadora Demo SAS",
@@ -59,7 +59,20 @@ export const DEMO_EMPRESAS = [
   },
 ];
 
-export const DEMO_EMPRESA = DEMO_EMPRESAS[0];
+let demoEmpresasList = [...SEED_EMPRESAS];
+
+export const DEMO_EMPRESAS: typeof SEED_EMPRESAS = demoEmpresasList as typeof SEED_EMPRESAS;
+
+export function getDemoEmpresas() { return demoEmpresasList; }
+export function getDemoEmpresaById(id: string) { return demoEmpresasList.find((e) => e.id === id); }
+export function addDemoEmpresa(empresa: Record<string, unknown>) {
+  demoEmpresasList = [empresa as typeof SEED_EMPRESAS[0], ...demoEmpresasList];
+}
+export function removeDemoEmpresa(id: string) {
+  demoEmpresasList = demoEmpresasList.filter((e) => e.id !== id);
+}
+
+export const DEMO_EMPRESA = SEED_EMPRESAS[0];
 
 type Estado = "cumple" | "no_cumple" | "en_proceso" | "no_aplica";
 

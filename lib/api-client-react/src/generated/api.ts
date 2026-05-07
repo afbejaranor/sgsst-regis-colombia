@@ -23,6 +23,7 @@ import type {
   Criterio,
   CumplimientoResumen,
   DashboardResumen,
+  DeleteEmpresa200,
   DescargarInformeExamenParams,
   Empresa,
   Examen,
@@ -37,6 +38,7 @@ import type {
   HealthStatus,
   Matriz,
   MatrizGenerada,
+  NuevaEmpresaBody,
   PilaProcesada,
   ProcesarExamenBody,
   ProcesarPilaBody,
@@ -206,6 +208,92 @@ export function useListEmpresas<
 }
 
 /**
+ * @summary Crear nueva empresa (solo admin)
+ */
+export const getCreateEmpresaUrl = () => {
+  return `/api/empresas`;
+};
+
+export const createEmpresa = async (
+  nuevaEmpresaBody: NuevaEmpresaBody,
+  options?: RequestInit,
+): Promise<Empresa> => {
+  return customFetch<Empresa>(getCreateEmpresaUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(nuevaEmpresaBody),
+  });
+};
+
+export const getCreateEmpresaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEmpresa>>,
+    TError,
+    { data: BodyType<NuevaEmpresaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createEmpresa>>,
+  TError,
+  { data: BodyType<NuevaEmpresaBody> },
+  TContext
+> => {
+  const mutationKey = ["createEmpresa"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createEmpresa>>,
+    { data: BodyType<NuevaEmpresaBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createEmpresa(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateEmpresaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createEmpresa>>
+>;
+export type CreateEmpresaMutationBody = BodyType<NuevaEmpresaBody>;
+export type CreateEmpresaMutationError = ErrorType<void>;
+
+/**
+ * @summary Crear nueva empresa (solo admin)
+ */
+export const useCreateEmpresa = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEmpresa>>,
+    TError,
+    { data: BodyType<NuevaEmpresaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createEmpresa>>,
+  TError,
+  { data: BodyType<NuevaEmpresaBody> },
+  TContext
+> => {
+  return useMutation(getCreateEmpresaMutationOptions(options));
+};
+
+/**
  * @summary Obtener empresa por ID
  */
 export const getGetEmpresaUrl = (id: string) => {
@@ -291,6 +379,90 @@ export function useGetEmpresa<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Eliminar empresa (solo admin)
+ */
+export const getDeleteEmpresaUrl = (id: string) => {
+  return `/api/empresas/${id}`;
+};
+
+export const deleteEmpresa = async (
+  id: string,
+  options?: RequestInit,
+): Promise<DeleteEmpresa200> => {
+  return customFetch<DeleteEmpresa200>(getDeleteEmpresaUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteEmpresaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEmpresa>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteEmpresa>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteEmpresa"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteEmpresa>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteEmpresa(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteEmpresaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteEmpresa>>
+>;
+
+export type DeleteEmpresaMutationError = ErrorType<void>;
+
+/**
+ * @summary Eliminar empresa (solo admin)
+ */
+export const useDeleteEmpresa = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEmpresa>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteEmpresa>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteEmpresaMutationOptions(options));
+};
 
 /**
  * @summary Cumplimiento Res. 0312 de una empresa

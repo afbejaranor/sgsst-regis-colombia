@@ -25,14 +25,34 @@ export const ListEmpresasResponseItem = zod.object({
   descripcion_actividad: zod.string().nullish(),
   tamano: zod.string().nullish(),
   num_empleados: zod.number().nullish(),
+  direccion: zod.string().nullish(),
   ciudad: zod.string().nullish(),
   contacto_nombre: zod.string().nullish(),
   contacto_email: zod.string().nullish(),
+  contacto_whatsapp: zod.string().nullish(),
   nivel_sgsst: zod.string().nullish(),
   activa: zod.boolean(),
   puntaje_cumplimiento: zod.number().nullish(),
 });
 export const ListEmpresasResponse = zod.array(ListEmpresasResponseItem);
+
+/**
+ * @summary Crear nueva empresa (solo admin)
+ */
+export const CreateEmpresaBody = zod.object({
+  nombre: zod.string(),
+  nit: zod.string(),
+  codigo_ciiu: zod.string(),
+  descripcion_actividad: zod.string().nullish(),
+  tamano: zod.string().nullish(),
+  num_empleados: zod.number().nullish(),
+  direccion: zod.string().nullish(),
+  ciudad: zod.string().nullish(),
+  contacto_nombre: zod.string().nullish(),
+  contacto_email: zod.string().nullish(),
+  contacto_whatsapp: zod.string().nullish(),
+  nivel_sgsst: zod.string().nullish(),
+});
 
 /**
  * @summary Obtener empresa por ID
@@ -49,12 +69,25 @@ export const GetEmpresaResponse = zod.object({
   descripcion_actividad: zod.string().nullish(),
   tamano: zod.string().nullish(),
   num_empleados: zod.number().nullish(),
+  direccion: zod.string().nullish(),
   ciudad: zod.string().nullish(),
   contacto_nombre: zod.string().nullish(),
   contacto_email: zod.string().nullish(),
+  contacto_whatsapp: zod.string().nullish(),
   nivel_sgsst: zod.string().nullish(),
   activa: zod.boolean(),
   puntaje_cumplimiento: zod.number().nullish(),
+});
+
+/**
+ * @summary Eliminar empresa (solo admin)
+ */
+export const DeleteEmpresaParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const DeleteEmpresaResponse = zod.object({
+  ok: zod.boolean().optional(),
 });
 
 /**

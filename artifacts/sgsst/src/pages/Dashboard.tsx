@@ -1,17 +1,58 @@
-import { useGetDashboardResumen, getGetDashboardResumenQueryKey } from "@workspace/api-client-react";
-import { Link } from "wouter";
+import { useState } from "react";
+import {
+  useGetDashboardResumen,
+  getGetDashboardResumenQueryKey,
+  useDeleteEmpresa,
+} from "@workspace/api-client-react";
+import { Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Building2, Percent, AlertCircle, ChevronRight } from "lucide-react";
+import { Building2, Percent, AlertCircle, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const isAdmin = user?.role === "admin";
+
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; nombre: string } | null>(null);
+
   const { data: dashboardData, isLoading, error } = useGetDashboardResumen({
     query: { queryKey: getGetDashboardResumenQueryKey() }
+  });
+
+  const deleteEmpresa = useDeleteEmpresa({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetDashboardResumenQueryKey() });
+        toast({ title: `Empresa "${deleteTarget?.nombre}" eliminada` });
+        setDeleteTarget(null);
+      },
+      onError: () => {
+        toast({ title: "Error al eliminar la empresa", variant: "destructive" });
+        setDeleteTarget(null);
+      },
+    },
   });
 
   if (isLoading) {
@@ -47,13 +88,25 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight" data-testid="dashboard-title">
-          Dashboard de Consultor
-        </h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Resumen de cumplimiento SG-SST · Res. 0312 de 2019
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="dashboard-title">
+            Dashboard de Consultor
+          </h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Resumen de cumplimiento SG-SST · Res. 0312 de 2019
+          </p>
+        </div>
+        {isAdmin && (
+          <Button
+            onClick={() => navigate("/empresa/nueva")}
+            data-testid="btn-nueva-empresa"
+            className="shrink-0"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva Empresa
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -118,12 +171,13 @@ export default function Dashboard() {
                 <TableHead>Nivel</TableHead>
                 <TableHead className="text-right">Pendientes</TableHead>
                 <TableHead className="w-10" />
+                {isAdmin && <TableHead className="w-10" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {empresas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                  <TableCell colSpan={isAdmin ? 7 : 6} className="text-center text-muted-foreground py-10">
                     Sin empresas registradas
                   </TableCell>
                 </TableRow>
@@ -177,6 +231,22 @@ export default function Dashboard() {
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </Link>
                     </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          data-testid={`btn-delete-${empresa.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget({ id: empresa.id ?? "", nombre: empresa.nombre ?? "" });
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -184,6 +254,32 @@ export default function Dashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar empresa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Va a eliminar <strong>{deleteTarget?.nombre}</strong>. Esta acción desactivará la empresa y no podrá
+              acceder a su información desde el dashboard. ¿Desea continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="btn-confirm-delete"
+              onClick={() => {
+                if (deleteTarget?.id) {
+                  deleteEmpresa.mutate({ id: deleteTarget.id });
+                }
+              }}
+            >
+              {deleteEmpresa.isPending ? "Eliminando…" : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

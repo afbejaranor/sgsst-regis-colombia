@@ -9,6 +9,21 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface NuevaEmpresaBody {
+  nombre: string;
+  nit: string;
+  codigo_ciiu: string;
+  descripcion_actividad?: string | null;
+  tamano?: string | null;
+  num_empleados?: number | null;
+  direccion?: string | null;
+  ciudad?: string | null;
+  contacto_nombre?: string | null;
+  contacto_email?: string | null;
+  contacto_whatsapp?: string | null;
+  nivel_sgsst?: string | null;
+}
+
 export interface Empresa {
   id: string;
   nombre: string;
@@ -17,9 +32,11 @@ export interface Empresa {
   descripcion_actividad?: string | null;
   tamano?: string | null;
   num_empleados?: number | null;
+  direccion?: string | null;
   ciudad?: string | null;
   contacto_nombre?: string | null;
   contacto_email?: string | null;
+  contacto_whatsapp?: string | null;
   nivel_sgsst?: string | null;
   activa: boolean;
   puntaje_cumplimiento?: number | null;
@@ -275,6 +292,10 @@ export interface Comite {
   vigencia_fin?: string | null;
   activo: boolean;
 }
+
+export type DeleteEmpresa200 = {
+  ok?: boolean;
+};
 
 export type DescargarInformeExamenParams = {
   formato?: DescargarInformeExamenFormato;

@@ -45,6 +45,25 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Empresa"
+    post:
+      operationId: createEmpresa
+      tags: [empresas]
+      summary: Crear nueva empresa (solo admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NuevaEmpresaBody"
+      responses:
+        "201":
+          description: Empresa creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Empresa"
+        "400":
+          description: Datos inválidos
 
   /empresas/{id}:
     get:
@@ -64,6 +83,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Empresa"
+    delete:
+      operationId: deleteEmpresa
+      tags: [empresas]
+      summary: Eliminar empresa (solo admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Empresa eliminada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "404":
+          description: No encontrada
 
   /cumplimiento/{empresaId}:
     get:
@@ -538,6 +579,44 @@ components:
           type: string
       required: [status]
 
+    NuevaEmpresaBody:
+      type: object
+      properties:
+        nombre:
+          type: string
+        nit:
+          type: string
+        codigo_ciiu:
+          type: string
+        descripcion_actividad:
+          type: string
+          nullable: true
+        tamano:
+          type: string
+          nullable: true
+        num_empleados:
+          type: integer
+          nullable: true
+        direccion:
+          type: string
+          nullable: true
+        ciudad:
+          type: string
+          nullable: true
+        contacto_nombre:
+          type: string
+          nullable: true
+        contacto_email:
+          type: string
+          nullable: true
+        contacto_whatsapp:
+          type: string
+          nullable: true
+        nivel_sgsst:
+          type: string
+          nullable: true
+      required: [nombre, nit, codigo_ciiu]
+
     Empresa:
       type: object
       properties:
@@ -558,6 +637,9 @@ components:
         num_empleados:
           type: integer
           nullable: true
+        direccion:
+          type: string
+          nullable: true
         ciudad:
           type: string
           nullable: true
@@ -565,6 +647,9 @@ components:
           type: string
           nullable: true
         contacto_email:
+          type: string
+          nullable: true
+        contacto_whatsapp:
           type: string
           nullable: true
         nivel_sgsst:

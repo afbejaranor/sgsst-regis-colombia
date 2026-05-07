@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Empresa {
-  id: string;
+export interface NuevaEmpresaBody {
   nombre: string;
   nit: string;
   codigo_ciiu: string;
@@ -20,6 +19,4 @@ export interface Empresa {
   contacto_email?: string | null;
   contacto_whatsapp?: string | null;
   nivel_sgsst?: string | null;
-  activa: boolean;
-  puntaje_cumplimiento?: number | null;
 }

@@ -8,6 +8,7 @@ import Actas from "./pages/Actas";
 import Pila from "./pages/Pila";
 import Comites from "./pages/Comites";
 import PlanAccion from "./pages/PlanAccion";
+import NuevaEmpresa from "./pages/NuevaEmpresa";
 import Login from "./pages/Login";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -25,6 +26,9 @@ export function AppRouter() {
       <Route path="/" component={() => <Redirect to={user ? "/dashboard" : "/login"} />} />
       <Route path="/dashboard">
         <RequireAuth><Dashboard /></RequireAuth>
+      </Route>
+      <Route path="/empresa/nueva">
+        {() => <RequireAuth><NuevaEmpresa /></RequireAuth>}
       </Route>
       <Route path="/empresa/:id">
         {(params) => <RequireAuth><EmpresaDetail /></RequireAuth>}
