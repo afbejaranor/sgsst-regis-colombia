@@ -100,8 +100,8 @@ Cédula trabajador: ${cedula_trabajador ?? "No especificado"}`;
 });
 
 async function handleInforme(req: Request, res: Response) {
-  const { examenId } = req.params;
-  const formato = ((req.query.formato as string) || "docx").toLowerCase();
+  const examenId = String(req.params.examenId);
+  const formato = (String(req.query.formato ?? "docx") || "docx").toLowerCase();
   if (formato !== "docx" && formato !== "pdf") {
     return res.status(400).json({ error: "Formato inválido. Use 'docx' o 'pdf'." });
   }

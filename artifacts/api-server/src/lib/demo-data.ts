@@ -265,7 +265,7 @@ export function getDemoCriterios() {
 export function updateDemoCriterio(criterioId: string, estado: string, observaciones?: string) {
   const idx = mutableCriterios.findIndex(c => c.id === criterioId);
   if (idx !== -1) {
-    mutableCriterios[idx] = { ...mutableCriterios[idx], estado, observaciones: observaciones ?? null };
+    mutableCriterios[idx] = { ...mutableCriterios[idx], estado: estado as Estado, observaciones: observaciones ?? null };
     return mutableCriterios[idx];
   }
   return null;
@@ -311,8 +311,10 @@ export function addDemoMatriz(m: Record<string, unknown>) { demoMatrices = [m, .
 
 let demoActas: Record<string, unknown>[] = [
   {
-    id: "ac001", empresa_id: EMPRESA2_ID, tipo_comite: "COPASST", fecha: "2025-04-15",
+    id: "ac001", empresa_id: EMPRESA2_ID, tipo_comite: "COPASST", version: 1,
+    fecha: "2025-04-15", fecha_reunion: "2025-04-15",
     lugar: "Sala de Reuniones Obra Norte", hora_inicio: "07:00", hora_fin: "08:30",
+    numero_acta: "COPASST-2025-04",
     asistentes: [
       { nombre: "Paola Jiménez", cargo: "Presidente COPASST" },
       { nombre: "Andrés Cárdenas", cargo: "Representante Trabajadores" },
@@ -320,11 +322,15 @@ let demoActas: Record<string, unknown>[] = [
     ],
     puntos_orden: ["Revisión de accidentes e incidentes del mes", "Inspección de andamios pendiente", "Revisión entrega EPP"],
     texto_acta: "En las instalaciones de la obra, se reunió el COPASST con quórum reglamentario. Se revisó el accidente con incapacidad ocurrido el 10 de abril (caída de mismo nivel). Se acordó inspección de EPP para el 22 de abril y capacitación en trabajo seguro en alturas.",
+    estado: "firmado",
+    drive_url: null,
     created_at: "2025-04-15T08:30:00Z",
   },
   {
-    id: "ac002", empresa_id: EMPRESA3_ID, tipo_comite: "COPASST", fecha: "2025-04-08",
+    id: "ac002", empresa_id: EMPRESA3_ID, tipo_comite: "COPASST", version: 1,
+    fecha: "2025-04-08", fecha_reunion: "2025-04-08",
     lugar: "Sala de Juntas Clínica", hora_inicio: "08:00", hora_fin: "09:15",
+    numero_acta: "COPASST-2025-04",
     asistentes: [
       { nombre: "Marcela Pinto", cargo: "Presidenta COPASST" },
       { nombre: "Fernando Valencia", cargo: "Representante Trabajadores" },
@@ -332,6 +338,8 @@ let demoActas: Record<string, unknown>[] = [
     ],
     puntos_orden: ["Seguimiento indicadores de accidentalidad", "Revisión programa de bioseguridad", "Cronograma vacunación hepatitis B"],
     texto_acta: "La clínica reporta cero accidentes de trabajo en el trimestre. Se aprobó el plan de vacunación contra hepatitis B para el personal nuevo. Se revisaron los indicadores de ausentismo con resultado satisfactorio.",
+    estado: "firmado",
+    drive_url: null,
     created_at: "2025-04-08T09:15:00Z",
   },
 ];
@@ -340,3 +348,7 @@ export function getDemoActaById(id: string): Record<string, unknown> | undefined
   return demoActas.find((a) => a.id === id);
 }
 export function addDemoActa(a: Record<string, unknown>) { demoActas = [a, ...demoActas]; }
+export function updateDemoActa(id: string, fields: Record<string, unknown>) {
+  const idx = demoActas.findIndex((a) => a.id === id);
+  if (idx !== -1) demoActas[idx] = { ...demoActas[idx], ...fields };
+}

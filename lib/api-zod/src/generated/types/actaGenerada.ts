@@ -12,6 +12,7 @@ export interface ActaGenerada {
   acta_id: string;
   numero_acta: string;
   tipo_comite: string;
+  version: number;
   fecha: string;
   compromisos: ActaGeneradaCompromisosItem[];
   texto_acta_completo: string;

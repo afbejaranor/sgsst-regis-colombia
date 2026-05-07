@@ -217,6 +217,7 @@ export interface ActaGenerada {
   acta_id: string;
   numero_acta: string;
   tipo_comite: string;
+  version: number;
   fecha: string;
   compromisos: ActaGeneradaCompromisosItem[];
   texto_acta_completo: string;
@@ -226,10 +227,23 @@ export interface ActaGenerada {
 export interface Acta {
   id: string;
   empresa_id: string;
+  tipo_comite?: string | null;
   numero_acta?: string | null;
+  version?: number | null;
   fecha_reunion?: string | null;
   estado: string;
+  drive_url?: string | null;
   created_at: string;
+}
+
+export interface SubirActaFirmadaBody {
+  file_base64: string;
+  file_name?: string | null;
+  mime_type?: string | null;
+}
+
+export interface SubirActaFirmadaResult {
+  drive_url: string;
 }
 
 export interface ProcesarPilaBody {
@@ -259,3 +273,75 @@ export interface Comite {
   vigencia_fin?: string | null;
   activo: boolean;
 }
+
+export type DescargarInformeExamenParams = {
+  formato?: DescargarInformeExamenFormato;
+};
+
+export type DescargarInformeExamenFormato =
+  (typeof DescargarInformeExamenFormato)[keyof typeof DescargarInformeExamenFormato];
+
+export const DescargarInformeExamenFormato = {
+  docx: "docx",
+  pdf: "pdf",
+} as const;
+
+export type GenerarInformeExamenParams = {
+  formato?: GenerarInformeExamenFormato;
+};
+
+export type GenerarInformeExamenFormato =
+  (typeof GenerarInformeExamenFormato)[keyof typeof GenerarInformeExamenFormato];
+
+export const GenerarInformeExamenFormato = {
+  docx: "docx",
+  pdf: "pdf",
+} as const;
+
+export type ExportarMatrizParams = {
+  formato?: ExportarMatrizFormato;
+};
+
+export type ExportarMatrizFormato =
+  (typeof ExportarMatrizFormato)[keyof typeof ExportarMatrizFormato];
+
+export const ExportarMatrizFormato = {
+  docx: "docx",
+  pdf: "pdf",
+} as const;
+
+export type GenerarExportarMatrizParams = {
+  formato?: GenerarExportarMatrizFormato;
+};
+
+export type GenerarExportarMatrizFormato =
+  (typeof GenerarExportarMatrizFormato)[keyof typeof GenerarExportarMatrizFormato];
+
+export const GenerarExportarMatrizFormato = {
+  docx: "docx",
+  pdf: "pdf",
+} as const;
+
+export type ExportarActaParams = {
+  formato?: ExportarActaFormato;
+};
+
+export type ExportarActaFormato =
+  (typeof ExportarActaFormato)[keyof typeof ExportarActaFormato];
+
+export const ExportarActaFormato = {
+  docx: "docx",
+  pdf: "pdf",
+} as const;
+
+export type GenerarExportarActaParams = {
+  formato?: GenerarExportarActaFormato;
+};
+
+export type GenerarExportarActaFormato =
+  (typeof GenerarExportarActaFormato)[keyof typeof GenerarExportarActaFormato];
+
+export const GenerarExportarActaFormato = {
+  docx: "docx",
+  pdf: "pdf",
+} as const;

@@ -182,6 +182,36 @@ export const ProcesarExamenResponse = zod.object({
 });
 
 /**
+ * @summary Descargar informe médico en .docx o .pdf
+ */
+export const DescargarInformeExamenParams = zod.object({
+  examenId: zod.coerce.string(),
+});
+
+export const descargarInformeExamenQueryFormatoDefault = `docx`;
+
+export const DescargarInformeExamenQueryParams = zod.object({
+  formato: zod
+    .enum(["docx", "pdf"])
+    .default(descargarInformeExamenQueryFormatoDefault),
+});
+
+/**
+ * @summary Generar y descargar informe médico en .docx o .pdf
+ */
+export const GenerarInformeExamenParams = zod.object({
+  examenId: zod.coerce.string(),
+});
+
+export const generarInformeExamenQueryFormatoDefault = `docx`;
+
+export const GenerarInformeExamenQueryParams = zod.object({
+  formato: zod
+    .enum(["docx", "pdf"])
+    .default(generarInformeExamenQueryFormatoDefault),
+});
+
+/**
  * @summary Exámenes médicos de una empresa
  */
 export const ListExamenesParams = zod.object({
@@ -224,6 +254,34 @@ export const GenerarMatrizResponse = zod.object({
 });
 
 /**
+ * @summary Exportar matriz GTC-45 en .docx o .pdf
+ */
+export const ExportarMatrizParams = zod.object({
+  matrizId: zod.coerce.string(),
+});
+
+export const exportarMatrizQueryFormatoDefault = `docx`;
+
+export const ExportarMatrizQueryParams = zod.object({
+  formato: zod.enum(["docx", "pdf"]).default(exportarMatrizQueryFormatoDefault),
+});
+
+/**
+ * @summary Generar y exportar matriz GTC-45 en .docx o .pdf
+ */
+export const GenerarExportarMatrizParams = zod.object({
+  matrizId: zod.coerce.string(),
+});
+
+export const generarExportarMatrizQueryFormatoDefault = `docx`;
+
+export const GenerarExportarMatrizQueryParams = zod.object({
+  formato: zod
+    .enum(["docx", "pdf"])
+    .default(generarExportarMatrizQueryFormatoDefault),
+});
+
+/**
  * @summary Matrices de riesgo de una empresa
  */
 export const ListMatricesParams = zod.object({
@@ -259,10 +317,56 @@ export const GenerarActaResponse = zod.object({
   acta_id: zod.string(),
   numero_acta: zod.string(),
   tipo_comite: zod.string(),
+  version: zod.number(),
   fecha: zod.string(),
   compromisos: zod.array(zod.record(zod.string(), zod.unknown())),
   texto_acta_completo: zod.string(),
   raw: zod.record(zod.string(), zod.unknown()).optional(),
+});
+
+/**
+ * @summary Subir acta firmada a Google Drive
+ */
+export const SubirActaFirmadaParams = zod.object({
+  actaId: zod.coerce.string(),
+});
+
+export const SubirActaFirmadaBody = zod.object({
+  file_base64: zod.string(),
+  file_name: zod.string().nullish(),
+  mime_type: zod.string().nullish(),
+});
+
+export const SubirActaFirmadaResponse = zod.object({
+  drive_url: zod.string(),
+});
+
+/**
+ * @summary Exportar acta de comité en .docx o .pdf
+ */
+export const ExportarActaParams = zod.object({
+  actaId: zod.coerce.string(),
+});
+
+export const exportarActaQueryFormatoDefault = `docx`;
+
+export const ExportarActaQueryParams = zod.object({
+  formato: zod.enum(["docx", "pdf"]).default(exportarActaQueryFormatoDefault),
+});
+
+/**
+ * @summary Generar y exportar acta de comité en .docx o .pdf
+ */
+export const GenerarExportarActaParams = zod.object({
+  actaId: zod.coerce.string(),
+});
+
+export const generarExportarActaQueryFormatoDefault = `docx`;
+
+export const GenerarExportarActaQueryParams = zod.object({
+  formato: zod
+    .enum(["docx", "pdf"])
+    .default(generarExportarActaQueryFormatoDefault),
 });
 
 /**
@@ -275,9 +379,12 @@ export const ListActasParams = zod.object({
 export const ListActasResponseItem = zod.object({
   id: zod.string(),
   empresa_id: zod.string(),
+  tipo_comite: zod.string().nullish(),
   numero_acta: zod.string().nullish(),
+  version: zod.number().nullish(),
   fecha_reunion: zod.string().nullish(),
   estado: zod.string(),
+  drive_url: zod.string().nullish(),
   created_at: zod.string(),
 });
 export const ListActasResponse = zod.array(ListActasResponseItem);

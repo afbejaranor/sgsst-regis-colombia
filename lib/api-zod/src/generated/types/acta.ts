@@ -9,8 +9,11 @@
 export interface Acta {
   id: string;
   empresa_id: string;
+  tipo_comite?: string | null;
   numero_acta?: string | null;
+  version?: number | null;
   fecha_reunion?: string | null;
   estado: string;
+  drive_url?: string | null;
   created_at: string;
 }

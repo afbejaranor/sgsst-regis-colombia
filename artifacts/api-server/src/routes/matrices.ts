@@ -98,8 +98,8 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
 });
 
 async function handleExportar(req: Request, res: Response) {
-  const { matrizId } = req.params;
-  const formato = ((req.query.formato as string) || "docx").toLowerCase();
+  const matrizId = String(req.params.matrizId);
+  const formato = (String(req.query.formato ?? "docx") || "docx").toLowerCase();
   if (formato !== "docx" && formato !== "pdf") {
     return res.status(400).json({ error: "Formato inválido. Use 'docx' o 'pdf'." });
   }

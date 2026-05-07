@@ -23,10 +23,16 @@ import type {
   Criterio,
   CumplimientoResumen,
   DashboardResumen,
+  DescargarInformeExamenParams,
   Empresa,
   Examen,
   ExamenProcesado,
+  ExportarActaParams,
+  ExportarMatrizParams,
   GenerarActaBody,
+  GenerarExportarActaParams,
+  GenerarExportarMatrizParams,
+  GenerarInformeExamenParams,
   GenerarMatrizBody,
   HealthStatus,
   Matriz,
@@ -34,6 +40,8 @@ import type {
   PilaProcesada,
   ProcesarExamenBody,
   ProcesarPilaBody,
+  SubirActaFirmadaBody,
+  SubirActaFirmadaResult,
   Trabajador,
   UpdateCriterioBody,
 } from "./api.schemas";
@@ -723,6 +731,224 @@ export const useProcesarExamen = <
 };
 
 /**
+ * @summary Descargar informe médico en .docx o .pdf
+ */
+export const getDescargarInformeExamenUrl = (
+  examenId: string,
+  params?: DescargarInformeExamenParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/examenes/${examenId}/informe?${stringifiedParams}`
+    : `/api/examenes/${examenId}/informe`;
+};
+
+export const descargarInformeExamen = async (
+  examenId: string,
+  params?: DescargarInformeExamenParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getDescargarInformeExamenUrl(examenId, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getDescargarInformeExamenQueryKey = (
+  examenId: string,
+  params?: DescargarInformeExamenParams,
+) => {
+  return [
+    `/api/examenes/${examenId}/informe`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getDescargarInformeExamenQueryOptions = <
+  TData = Awaited<ReturnType<typeof descargarInformeExamen>>,
+  TError = ErrorType<void>,
+>(
+  examenId: string,
+  params?: DescargarInformeExamenParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof descargarInformeExamen>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getDescargarInformeExamenQueryKey(examenId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof descargarInformeExamen>>
+  > = ({ signal }) =>
+    descargarInformeExamen(examenId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!examenId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof descargarInformeExamen>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type DescargarInformeExamenQueryResult = NonNullable<
+  Awaited<ReturnType<typeof descargarInformeExamen>>
+>;
+export type DescargarInformeExamenQueryError = ErrorType<void>;
+
+/**
+ * @summary Descargar informe médico en .docx o .pdf
+ */
+
+export function useDescargarInformeExamen<
+  TData = Awaited<ReturnType<typeof descargarInformeExamen>>,
+  TError = ErrorType<void>,
+>(
+  examenId: string,
+  params?: DescargarInformeExamenParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof descargarInformeExamen>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getDescargarInformeExamenQueryOptions(
+    examenId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generar y descargar informe médico en .docx o .pdf
+ */
+export const getGenerarInformeExamenUrl = (
+  examenId: string,
+  params?: GenerarInformeExamenParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/examenes/${examenId}/informe?${stringifiedParams}`
+    : `/api/examenes/${examenId}/informe`;
+};
+
+export const generarInformeExamen = async (
+  examenId: string,
+  params?: GenerarInformeExamenParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGenerarInformeExamenUrl(examenId, params), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getGenerarInformeExamenMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generarInformeExamen>>,
+    TError,
+    { examenId: string; params?: GenerarInformeExamenParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generarInformeExamen>>,
+  TError,
+  { examenId: string; params?: GenerarInformeExamenParams },
+  TContext
+> => {
+  const mutationKey = ["generarInformeExamen"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generarInformeExamen>>,
+    { examenId: string; params?: GenerarInformeExamenParams }
+  > = (props) => {
+    const { examenId, params } = props ?? {};
+
+    return generarInformeExamen(examenId, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerarInformeExamenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generarInformeExamen>>
+>;
+
+export type GenerarInformeExamenMutationError = ErrorType<void>;
+
+/**
+ * @summary Generar y descargar informe médico en .docx o .pdf
+ */
+export const useGenerarInformeExamen = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generarInformeExamen>>,
+    TError,
+    { examenId: string; params?: GenerarInformeExamenParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generarInformeExamen>>,
+  TError,
+  { examenId: string; params?: GenerarInformeExamenParams },
+  TContext
+> => {
+  return useMutation(getGenerarInformeExamenMutationOptions(options));
+};
+
+/**
  * @summary Exámenes médicos de una empresa
  */
 export const getListExamenesUrl = (empresaId: string) => {
@@ -896,6 +1122,218 @@ export const useGenerarMatriz = <
 };
 
 /**
+ * @summary Exportar matriz GTC-45 en .docx o .pdf
+ */
+export const getExportarMatrizUrl = (
+  matrizId: string,
+  params?: ExportarMatrizParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/matrices/${matrizId}/exportar?${stringifiedParams}`
+    : `/api/matrices/${matrizId}/exportar`;
+};
+
+export const exportarMatriz = async (
+  matrizId: string,
+  params?: ExportarMatrizParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getExportarMatrizUrl(matrizId, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportarMatrizQueryKey = (
+  matrizId: string,
+  params?: ExportarMatrizParams,
+) => {
+  return [
+    `/api/matrices/${matrizId}/exportar`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getExportarMatrizQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportarMatriz>>,
+  TError = ErrorType<void>,
+>(
+  matrizId: string,
+  params?: ExportarMatrizParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportarMatriz>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportarMatrizQueryKey(matrizId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportarMatriz>>> = ({
+    signal,
+  }) => exportarMatriz(matrizId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!matrizId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportarMatriz>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportarMatrizQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportarMatriz>>
+>;
+export type ExportarMatrizQueryError = ErrorType<void>;
+
+/**
+ * @summary Exportar matriz GTC-45 en .docx o .pdf
+ */
+
+export function useExportarMatriz<
+  TData = Awaited<ReturnType<typeof exportarMatriz>>,
+  TError = ErrorType<void>,
+>(
+  matrizId: string,
+  params?: ExportarMatrizParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportarMatriz>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportarMatrizQueryOptions(matrizId, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generar y exportar matriz GTC-45 en .docx o .pdf
+ */
+export const getGenerarExportarMatrizUrl = (
+  matrizId: string,
+  params?: GenerarExportarMatrizParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/matrices/${matrizId}/exportar?${stringifiedParams}`
+    : `/api/matrices/${matrizId}/exportar`;
+};
+
+export const generarExportarMatriz = async (
+  matrizId: string,
+  params?: GenerarExportarMatrizParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGenerarExportarMatrizUrl(matrizId, params), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getGenerarExportarMatrizMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generarExportarMatriz>>,
+    TError,
+    { matrizId: string; params?: GenerarExportarMatrizParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generarExportarMatriz>>,
+  TError,
+  { matrizId: string; params?: GenerarExportarMatrizParams },
+  TContext
+> => {
+  const mutationKey = ["generarExportarMatriz"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generarExportarMatriz>>,
+    { matrizId: string; params?: GenerarExportarMatrizParams }
+  > = (props) => {
+    const { matrizId, params } = props ?? {};
+
+    return generarExportarMatriz(matrizId, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerarExportarMatrizMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generarExportarMatriz>>
+>;
+
+export type GenerarExportarMatrizMutationError = ErrorType<void>;
+
+/**
+ * @summary Generar y exportar matriz GTC-45 en .docx o .pdf
+ */
+export const useGenerarExportarMatriz = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generarExportarMatriz>>,
+    TError,
+    { matrizId: string; params?: GenerarExportarMatrizParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generarExportarMatriz>>,
+  TError,
+  { matrizId: string; params?: GenerarExportarMatrizParams },
+  TContext
+> => {
+  return useMutation(getGenerarExportarMatrizMutationOptions(options));
+};
+
+/**
  * @summary Matrices de riesgo de una empresa
  */
 export const getListMatricesUrl = (empresaId: string) => {
@@ -1066,6 +1504,305 @@ export const useGenerarActa = <
   TContext
 > => {
   return useMutation(getGenerarActaMutationOptions(options));
+};
+
+/**
+ * @summary Subir acta firmada a Google Drive
+ */
+export const getSubirActaFirmadaUrl = (actaId: string) => {
+  return `/api/actas/${actaId}/subir-firmada`;
+};
+
+export const subirActaFirmada = async (
+  actaId: string,
+  subirActaFirmadaBody: SubirActaFirmadaBody,
+  options?: RequestInit,
+): Promise<SubirActaFirmadaResult> => {
+  return customFetch<SubirActaFirmadaResult>(getSubirActaFirmadaUrl(actaId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(subirActaFirmadaBody),
+  });
+};
+
+export const getSubirActaFirmadaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof subirActaFirmada>>,
+    TError,
+    { actaId: string; data: BodyType<SubirActaFirmadaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof subirActaFirmada>>,
+  TError,
+  { actaId: string; data: BodyType<SubirActaFirmadaBody> },
+  TContext
+> => {
+  const mutationKey = ["subirActaFirmada"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof subirActaFirmada>>,
+    { actaId: string; data: BodyType<SubirActaFirmadaBody> }
+  > = (props) => {
+    const { actaId, data } = props ?? {};
+
+    return subirActaFirmada(actaId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubirActaFirmadaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof subirActaFirmada>>
+>;
+export type SubirActaFirmadaMutationBody = BodyType<SubirActaFirmadaBody>;
+export type SubirActaFirmadaMutationError = ErrorType<void>;
+
+/**
+ * @summary Subir acta firmada a Google Drive
+ */
+export const useSubirActaFirmada = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof subirActaFirmada>>,
+    TError,
+    { actaId: string; data: BodyType<SubirActaFirmadaBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof subirActaFirmada>>,
+  TError,
+  { actaId: string; data: BodyType<SubirActaFirmadaBody> },
+  TContext
+> => {
+  return useMutation(getSubirActaFirmadaMutationOptions(options));
+};
+
+/**
+ * @summary Exportar acta de comité en .docx o .pdf
+ */
+export const getExportarActaUrl = (
+  actaId: string,
+  params?: ExportarActaParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/actas/${actaId}/exportar?${stringifiedParams}`
+    : `/api/actas/${actaId}/exportar`;
+};
+
+export const exportarActa = async (
+  actaId: string,
+  params?: ExportarActaParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getExportarActaUrl(actaId, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportarActaQueryKey = (
+  actaId: string,
+  params?: ExportarActaParams,
+) => {
+  return [
+    `/api/actas/${actaId}/exportar`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getExportarActaQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportarActa>>,
+  TError = ErrorType<void>,
+>(
+  actaId: string,
+  params?: ExportarActaParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportarActa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportarActaQueryKey(actaId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportarActa>>> = ({
+    signal,
+  }) => exportarActa(actaId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!actaId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportarActa>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportarActaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportarActa>>
+>;
+export type ExportarActaQueryError = ErrorType<void>;
+
+/**
+ * @summary Exportar acta de comité en .docx o .pdf
+ */
+
+export function useExportarActa<
+  TData = Awaited<ReturnType<typeof exportarActa>>,
+  TError = ErrorType<void>,
+>(
+  actaId: string,
+  params?: ExportarActaParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportarActa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportarActaQueryOptions(actaId, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generar y exportar acta de comité en .docx o .pdf
+ */
+export const getGenerarExportarActaUrl = (
+  actaId: string,
+  params?: GenerarExportarActaParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/actas/${actaId}/exportar?${stringifiedParams}`
+    : `/api/actas/${actaId}/exportar`;
+};
+
+export const generarExportarActa = async (
+  actaId: string,
+  params?: GenerarExportarActaParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGenerarExportarActaUrl(actaId, params), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getGenerarExportarActaMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generarExportarActa>>,
+    TError,
+    { actaId: string; params?: GenerarExportarActaParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generarExportarActa>>,
+  TError,
+  { actaId: string; params?: GenerarExportarActaParams },
+  TContext
+> => {
+  const mutationKey = ["generarExportarActa"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generarExportarActa>>,
+    { actaId: string; params?: GenerarExportarActaParams }
+  > = (props) => {
+    const { actaId, params } = props ?? {};
+
+    return generarExportarActa(actaId, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerarExportarActaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generarExportarActa>>
+>;
+
+export type GenerarExportarActaMutationError = ErrorType<void>;
+
+/**
+ * @summary Generar y exportar acta de comité en .docx o .pdf
+ */
+export const useGenerarExportarActa = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generarExportarActa>>,
+    TError,
+    { actaId: string; params?: GenerarExportarActaParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generarExportarActa>>,
+  TError,
+  { actaId: string; params?: GenerarExportarActaParams },
+  TContext
+> => {
+  return useMutation(getGenerarExportarActaMutationOptions(options));
 };
 
 /**

@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,11 +18,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   FileText, Sparkles, Plus, Trash2, ScrollText,
   Download, Upload, CheckCircle2, CloudUpload, ExternalLink,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import { CompanyPageHeader } from "@/components/CompanyPageHeader";
-import { DRIVE_FOLDERS } from "@/lib/drive-config";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
@@ -53,7 +51,8 @@ export default function Actas() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [lastResult, setLastResult] = useState<NonNullable<ReturnType<typeof useGenerarActa>["data"]> | null>(null);
   const [tipoComite, setTipoComite] = useState<"COPASST" | "convivencia">("COPASST");
-  const [uploadActaStatus, setUploadActaStatus] = useState<"idle" | "success" | "error">("idle");
+  const [uploadActaStatus, setUploadActaStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+  const [uploadDriveUrl, setUploadDriveUrl] = useState<string | null>(null);
   const [downloadingFormat, setDownloadingFormat] = useState<"doc" | "pdf" | null>(null);
   const [actaDriveUrl, setActaDriveUrl] = useState<string | null>(null);
 
@@ -61,8 +60,6 @@ export default function Actas() {
   const { data: actas, isLoading } = useListActas(empresaId, {
     query: { queryKey: getListActasQueryKey(empresaId) },
   });
-
-  const driveFolder = DRIVE_FOLDERS[empresaId]?.actas_copasst ?? DRIVE_FOLDERS[DEMO_ID]?.actas_copasst;
 
   const { register, handleSubmit, control, setValue, formState: { errors } } = useForm<FormValues>({
     defaultValues: {
@@ -106,8 +103,10 @@ export default function Actas() {
         onSuccess: (data) => {
           setLastResult(data);
           setActaDriveUrl(null);
+          setUploadActaStatus("idle");
+          setUploadDriveUrl(null);
           qc.invalidateQueries({ queryKey: getListActasQueryKey(empresaId) });
-          toast({ title: "Acta generada con IA" });
+          toast({ title: `Acta v${data.version} generada con IA` });
         },
         onError: () => toast({ title: "Error al generar el acta", variant: "destructive" }),
       }
@@ -126,12 +125,17 @@ export default function Actas() {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = `${lastResult.numero_acta ?? "Acta"}.${ext}`;
+      const version = lastResult.version ?? 1;
+      const tipo = lastResult.tipo_comite ?? "COPASST";
+      a.download = `Acta_${tipo}_v${version}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
-      if (driveUrl) setActaDriveUrl(driveUrl);
+      if (driveUrl) {
+        setActaDriveUrl(driveUrl);
+        qc.invalidateQueries({ queryKey: getListActasQueryKey(empresaId) });
+      }
       toast({ title: driveUrl ? "Documento guardado en Drive" : `Acta .${ext} descargada` });
     } catch {
       toast({ title: "Error al generar el documento", variant: "destructive" });
@@ -141,12 +145,40 @@ export default function Actas() {
   }
 
   function handleUploadActa(file: File) {
-    if (!file) return;
-    setUploadActaStatus("idle");
-    setTimeout(() => {
-      setUploadActaStatus("success");
-      toast({ title: `Acta "${file.name}" guardada en Drive exitosamente` });
-    }, 1200);
+    if (!file || !lastResult?.acta_id) return;
+    setUploadActaStatus("uploading");
+    setUploadDriveUrl(null);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const dataUrl = reader.result as string;
+        const base64 = dataUrl.split(",")[1];
+        const resp = await fetch(`/api/actas/${lastResult.acta_id}/subir-firmada`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            file_base64: base64,
+            file_name: file.name,
+            mime_type: file.type || "application/pdf",
+          }),
+        });
+        if (!resp.ok) throw new Error("Drive upload failed");
+        const result = await resp.json() as { drive_url: string };
+        setUploadActaStatus("success");
+        setUploadDriveUrl(result.drive_url);
+        qc.invalidateQueries({ queryKey: getListActasQueryKey(empresaId) });
+        toast({ title: `Acta firmada guardada en Drive` });
+      } catch {
+        setUploadActaStatus("error");
+        toast({ title: "Error al subir el archivo a Drive", variant: "destructive" });
+      }
+    };
+    reader.onerror = () => {
+      setUploadActaStatus("error");
+      toast({ title: "Error al leer el archivo", variant: "destructive" });
+    };
+    reader.readAsDataURL(file);
   }
 
   return (
@@ -264,7 +296,9 @@ export default function Actas() {
                     <ScrollText className="h-5 w-5 text-primary" />
                     Acta {lastResult.numero_acta}
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground capitalize mt-1">{lastResult.tipo_comite} · {lastResult.fecha}</p>
+                  <p className="text-xs text-muted-foreground capitalize mt-1">
+                    {lastResult.tipo_comite} · {lastResult.fecha} · <span className="font-semibold text-primary">v{lastResult.version}</span>
+                  </p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex gap-2">
@@ -304,7 +338,9 @@ export default function Actas() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2">Compromisos</p>
                   <ul className="text-sm space-y-1 list-disc list-inside">
-                    {(lastResult.compromisos as string[]).map((c, i) => <li key={i}>{c}</li>)}
+                    {(lastResult.compromisos as unknown[]).map((c, i) => (
+                      <li key={i}>{typeof c === "string" ? c : JSON.stringify(c)}</li>
+                    ))}
                   </ul>
                 </div>
               )}
@@ -324,23 +360,33 @@ export default function Actas() {
                 </p>
                 <div
                   className="border border-dashed rounded-md p-3 flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/30 transition-colors text-sm text-muted-foreground"
-                  onClick={() => fileRef.current?.click()}
+                  onClick={() => uploadActaStatus !== "uploading" && fileRef.current?.click()}
                 >
-                  <Upload className="h-4 w-4" />
-                  Seleccionar acta firmada (PDF)
+                  {uploadActaStatus === "uploading"
+                    ? <><Loader2 className="h-4 w-4 animate-spin" />Subiendo a Drive…</>
+                    : <><Upload className="h-4 w-4" />Seleccionar acta firmada (PDF)</>
+                  }
                 </div>
                 <input
                   ref={fileRef}
                   type="file"
                   accept=".pdf,.doc,.docx"
                   className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadActa(f); }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadActa(f); e.target.value = ""; }}
                 />
                 {uploadActaStatus === "success" && (
                   <div className="mt-2 flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
-                    Documento guardado en Drive exitosamente.
+                    <span>Documento guardado en Drive.</span>
+                    {uploadDriveUrl && (
+                      <a href={uploadDriveUrl} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 underline">
+                        <ExternalLink className="h-3 w-3" />Abrir
+                      </a>
+                    )}
                   </div>
+                )}
+                {uploadActaStatus === "error" && (
+                  <p className="mt-2 text-xs text-red-600">Error al subir el archivo. Intente de nuevo.</p>
                 )}
               </div>
             </CardContent>
@@ -357,7 +403,8 @@ export default function Actas() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Número</TableHead>
+                  <TableHead>Comité</TableHead>
+                  <TableHead>Número / Versión</TableHead>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Drive</TableHead>
@@ -365,10 +412,16 @@ export default function Actas() {
               </TableHeader>
               <TableBody>
                 {(!actas || actas.length === 0) ? (
-                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-10">Sin actas registradas</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Sin actas registradas</TableCell></TableRow>
                 ) : actas.map((a) => (
                   <TableRow key={a.id} data-testid={`acta-row-${a.id}`}>
-                    <TableCell className="font-mono text-sm">{a.numero_acta}</TableCell>
+                    <TableCell className="text-sm font-medium">{a.tipo_comite ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      <span>{a.numero_acta ?? "—"}</span>
+                      {a.version != null && (
+                        <span className="ml-2 text-xs text-primary font-semibold">v{a.version}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm">{a.fecha_reunion ? new Date(a.fecha_reunion).toLocaleDateString("es-CO") : "—"}</TableCell>
                     <TableCell>
                       <span className={`inline-flex px-2 py-0.5 rounded border text-xs font-medium ${ESTADO_COLORS[a.estado ?? "borrador"]}`}>
@@ -376,9 +429,13 @@ export default function Actas() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <a href={driveFolder} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
-                        Ver carpeta
-                      </a>
+                      {a.drive_url ? (
+                        <a href={a.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-emerald-700 hover:underline">
+                          <ExternalLink className="h-3 w-3" />Ver archivo
+                        </a>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
