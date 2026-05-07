@@ -242,10 +242,12 @@ export interface ActaData {
   lugar?: string | null;
   hora_inicio?: string | null;
   hora_fin?: string | null;
+  citada_por?: string | null;
   asistentes?: unknown[];
   asistentes_confirmados?: unknown[];
   puntos_orden?: unknown[];
   puntos_tratados?: unknown[];
+  compromisos?: unknown[];
   texto_acta?: string | null;
   acta_generada?: string | null;
   [key: string]: unknown;
@@ -551,12 +553,15 @@ export async function generateMatrizPdf(matriz: MatrizData, empresa: EmpresaData
 export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Promise<Buffer> {
   const tipoComite = (acta.tipo_comite ?? "COPASST").toUpperCase();
   const numeroActa = (acta.numero_acta ?? `${tipoComite}-${acta.fecha ?? acta.fecha_reunion ?? ""}`.substring(0, 20)) as string;
+  const version = acta.version ?? 1;
   const fecha = acta.fecha ?? acta.fecha_reunion ?? "—";
   const lugar = acta.lugar ?? "—";
   const horaInicio = acta.hora_inicio ?? "—";
   const horaFin = acta.hora_fin ?? "—";
+  const citadaPor = acta.citada_por ?? empresa.nombre;
   const asistentes = (acta.asistentes ?? acta.asistentes_confirmados ?? []) as Record<string, string>[];
   const puntos = (acta.puntos_orden ?? acta.puntos_tratados ?? []) as string[];
+  const compromisos = toStringList((acta.compromisos ?? []) as unknown[]);
   const textoActa = (acta.acta_generada ?? acta.texto_acta ?? "No disponible") as string;
   const genDate = new Date().toLocaleDateString("es-CO");
 
@@ -564,6 +569,15 @@ export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Pr
     new Paragraph({
       children: [new TextRun({ text, bold: true, size: 24, color: "006B35" })],
       spacing: { before: 280, after: 100 },
+    });
+
+  const sigLine = (label: string) =>
+    new TableCell({
+      children: [
+        new Paragraph({ spacing: { before: 560 }, children: [new TextRun({ text: "________________________________", size: 20 })] }),
+        new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 20 })] }),
+        new Paragraph({ children: [new TextRun({ text: "Nombre y firma", size: 18, color: "888888" })] }),
+      ],
     });
 
   const doc = new Document({
@@ -575,16 +589,17 @@ export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Pr
           alignment: AlignmentType.CENTER, spacing: { after: 100 },
         }),
         new Paragraph({
-          children: [new TextRun({ text: `${empresa.nombre}  ·  NIT ${empresa.nit}`, size: 20, color: "555555" })],
+          children: [new TextRun({ text: `${empresa.nombre}  ·  NIT ${empresa.nit}  ·  v${version}`, size: 20, color: "555555" })],
           alignment: AlignmentType.CENTER, spacing: { after: 400 },
         }),
 
-        sectionHeader("DATOS DE LA REUNIÓN"),
+        sectionHeader("ENCABEZADO DE REUNIÓN"),
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
           rows: [
-            dataRow("Número de acta", numeroActa),
+            dataRow("Acta número", `${numeroActa}  (v${version})`),
             dataRow("Tipo de comité", tipoComite),
+            dataRow("Citada por", citadaPor),
             dataRow("Fecha", fecha),
             dataRow("Hora inicio / fin", `${horaInicio} - ${horaFin}`),
             dataRow("Lugar", lugar),
@@ -592,14 +607,15 @@ export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Pr
         }),
 
         ...(asistentes.length > 0 ? [
-          sectionHeader("ASISTENTES"),
+          sectionHeader("TABLA DE ASISTENTES"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
               new TableRow({
                 tableHeader: true,
-                children: ["Nombre", "Cargo"].map((h) =>
+                children: ["Nombre", "Cargo", "Firma"].map((h) =>
                   new TableCell({
+                    width: h === "Firma" ? { size: 30, type: WidthType.PERCENTAGE } : { size: 35, type: WidthType.PERCENTAGE },
                     shading: { fill: "006B35", type: ShadingType.CLEAR, color: "auto" },
                     children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 20 })] })],
                   })
@@ -610,6 +626,7 @@ export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Pr
                   children: [
                     new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: a.nombre ?? "—", size: 20 })] })] }),
                     new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: a.cargo ?? a.cargo_empresa ?? "—", size: 20 })] })] }),
+                    new TableCell({ children: [new Paragraph({ spacing: { before: 320 }, children: [new TextRun({ text: "________________", size: 20, color: "AAAAAA" })] })] }),
                   ],
                 })
               ),
@@ -618,7 +635,7 @@ export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Pr
         ] : []),
 
         ...(puntos.length > 0 ? [
-          sectionHeader("ORDEN DEL DÍA"),
+          sectionHeader("AGENDA / ORDEN DEL DÍA"),
           ...puntos.map((p, i) =>
             new Paragraph({
               children: [new TextRun({ text: `${i + 1}. ${typeof p === "string" ? p : JSON.stringify(p)}`, size: 20 })],
@@ -627,25 +644,48 @@ export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Pr
           ),
         ] : []),
 
-        sectionHeader("DESARROLLO DEL ACTA"),
+        sectionHeader("DESARROLLO DE LA REUNIÓN"),
         ...textoActa.split("\n").map((line) =>
           new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 60 } })
         ),
+
+        ...(compromisos.length > 0 ? [
+          sectionHeader("COMPROMISOS Y ACCIONES"),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({
+                tableHeader: true,
+                children: ["#", "Compromiso / Acción", "Responsable", "Fecha límite"].map((h) =>
+                  new TableCell({
+                    shading: { fill: "006B35", type: ShadingType.CLEAR, color: "auto" },
+                    children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 18 })] })],
+                  })
+                ),
+              }),
+              ...compromisos.map((c, i) =>
+                new TableRow({
+                  children: [
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: String(i + 1), size: 18 })] })] }),
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: c, size: 18 })] })] }),
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "—", size: 18, color: "AAAAAA" })] })] }),
+                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "—", size: 18, color: "AAAAAA" })] })] }),
+                  ],
+                })
+              ),
+            ],
+          }),
+        ] : []),
 
         sectionHeader("FIRMAS"),
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
           rows: [
             new TableRow({
-              children: ["Presidente del Comité", "Secretario(a)"].map((cargo) =>
-                new TableCell({
-                  children: [
-                    new Paragraph({ spacing: { before: 480 }, children: [new TextRun({ text: "________________________________", size: 20 })] }),
-                    new Paragraph({ children: [new TextRun({ text: cargo, bold: true, size: 20 })] }),
-                    new Paragraph({ children: [new TextRun({ text: "Nombre y firma", size: 18, color: "888888" })] }),
-                  ],
-                })
-              ),
+              children: [
+                sigLine("Presidente del Comité"),
+                sigLine("Secretario(a)"),
+              ],
             }),
           ],
         }),
@@ -698,13 +738,22 @@ export async function generateActaPdf(acta: ActaData, empresa: EmpresaData): Pro
     page.drawText(text, { x: M + 8, y, size: 11, font: boldFont, color: rgb(0, 0.42, 0.21) });
     y -= LH + 10;
   }
+  function drawDR(label: string, value: string) {
+    ensureSpace(LH + 2);
+    page.drawText(`${label}:`, { x: M + 4, y, size: 10, font: boldFont, color: rgb(0.35, 0.35, 0.35) });
+    const lw = boldFont.widthOfTextAtSize(`${label}: `, 10);
+    dw(value, M + 4 + lw, CW - lw - 8, 10, regularFont);
+  }
 
   const tipoComite = (acta.tipo_comite ?? "COPASST").toUpperCase();
   const numeroActa = acta.numero_acta ?? `${tipoComite}-${acta.fecha ?? ""}`;
+  const version = acta.version ?? 1;
   const fecha = acta.fecha ?? acta.fecha_reunion ?? "—";
   const lugar = acta.lugar ?? "—";
+  const citadaPor = acta.citada_por ?? empresa.nombre;
   const asistentes = (acta.asistentes ?? acta.asistentes_confirmados ?? []) as Record<string, string>[];
   const puntos = (acta.puntos_orden ?? acta.puntos_tratados ?? []) as string[];
+  const compromisos = toStringList((acta.compromisos ?? []) as unknown[]);
   const textoActa = (acta.acta_generada ?? acta.texto_acta ?? "No disponible") as string;
   const genDate = new Date().toLocaleDateString("es-CO");
 
@@ -712,59 +761,102 @@ export async function generateActaPdf(acta: ActaData, empresa: EmpresaData): Pro
   const titleW = boldFont.widthOfTextAtSize(titleStr, 14);
   page.drawText(titleStr, { x: (W - titleW) / 2, y, size: 14, font: boldFont, color: rgb(0, 0.42, 0.21) });
   y -= 20;
-  const compStr = `${empresa.nombre}  ·  NIT ${empresa.nit}`;
+  const compStr = `${empresa.nombre}  ·  NIT ${empresa.nit}  ·  v${version}`;
   const compW = regularFont.widthOfTextAtSize(compStr, 10);
   page.drawText(compStr, { x: (W - compW) / 2, y, size: 10, font: regularFont, color: rgb(0.4, 0.4, 0.4) });
   y -= 14;
   page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.5, color: rgb(0, 0.42, 0.21) });
   y -= 18;
 
-  drawSH("DATOS DE LA REUNIÓN");
-  const meetingData = [
-    ["Número de acta", String(numeroActa)],
-    ["Tipo de comité", tipoComite],
-    ["Fecha", fecha],
-    ["Hora inicio / fin", `${acta.hora_inicio ?? "—"} - ${acta.hora_fin ?? "—"}`],
-    ["Lugar", lugar],
-  ];
-  for (const [label, value] of meetingData) {
-    ensureSpace(LH + 2);
-    page.drawText(`${label}:`, { x: M + 4, y, size: 10, font: boldFont, color: rgb(0.35, 0.35, 0.35) });
-    const lw = boldFont.widthOfTextAtSize(`${label}: `, 10);
-    dw(value, M + 4 + lw, CW - lw - 8, 10, regularFont);
-  }
+  drawSH("ENCABEZADO DE REUNIÓN");
+  drawDR("Acta número", `${String(numeroActa)}  (v${version})`);
+  drawDR("Tipo de comité", tipoComite);
+  drawDR("Citada por", citadaPor);
+  drawDR("Fecha", fecha);
+  drawDR("Hora inicio / fin", `${acta.hora_inicio ?? "—"} - ${acta.hora_fin ?? "—"}`);
+  drawDR("Lugar", lugar);
   y -= GAP;
 
   if (asistentes.length > 0) {
-    drawSH("ASISTENTES");
+    drawSH("TABLA DE ASISTENTES");
+    const colWidths = [170, 150, 125];
+    const headers = ["Nombre", "Cargo", "Firma"];
+    ensureSpace(LH + 4);
+    let hx = M;
+    page.drawRectangle({ x: M, y: y - 4, width: CW, height: LH + 6, color: rgb(0, 0.42, 0.21) });
+    for (let i = 0; i < headers.length; i++) {
+      page.drawText(headers[i], { x: hx + 4, y, size: 9, font: boldFont, color: rgb(1, 1, 1) });
+      hx += colWidths[i];
+    }
+    y -= LH + 8;
     for (const a of asistentes) {
-      ensureSpace(LH);
+      ensureSpace(LH + 8);
       const nombre = a.nombre ?? "—";
       const cargo = a.cargo ?? a.cargo_empresa ?? "—";
-      page.drawText(`• ${nombre}`, { x: M + 8, y, size: 10, font: boldFont });
-      const nW = boldFont.widthOfTextAtSize(`• ${nombre}  `, 10);
-      page.drawText(`(${cargo})`, { x: M + 8 + nW, y, size: 10, font: regularFont, color: rgb(0.4, 0.4, 0.4) });
-      y -= LH;
+      const rowY = y;
+      let cx = M;
+      for (let i = 0; i < colWidths.length; i++) {
+        if (i < 2) {
+          const txt = i === 0 ? nombre : cargo;
+          page.drawText(txt, { x: cx + 4, y: rowY, size: 9, font: regularFont });
+        } else {
+          page.drawLine({
+            start: { x: cx + 4, y: rowY - 4 },
+            end: { x: cx + colWidths[i] - 8, y: rowY - 4 },
+            thickness: 0.4, color: rgb(0.6, 0.6, 0.6),
+          });
+        }
+        cx += colWidths[i];
+      }
+      page.drawLine({ start: { x: M, y: rowY - LH - 2 }, end: { x: W - M, y: rowY - LH - 2 }, thickness: 0.2, color: rgb(0.85, 0.85, 0.85) });
+      y -= LH + 6;
     }
     y -= GAP;
   }
 
   if (puntos.length > 0) {
-    drawSH("ORDEN DEL DÍA");
+    drawSH("AGENDA / ORDEN DEL DÍA");
     puntos.forEach((p, i) => dw(`${i + 1}. ${typeof p === "string" ? p : JSON.stringify(p)}`, M + 8, CW - 14, 10, regularFont));
     y -= GAP;
   }
 
-  drawSH("DESARROLLO DEL ACTA");
+  drawSH("DESARROLLO DE LA REUNIÓN");
   for (const line of textoActa.split("\n")) {
     if (line.trim()) dw(line, M + 4, CW - 8, 10, regularFont);
     else { ensureSpace(GAP); y -= GAP / 2; }
   }
   y -= GAP;
 
+  if (compromisos.length > 0) {
+    drawSH("COMPROMISOS Y ACCIONES");
+    const cColW = [25, 270, 120, 80];
+    const cHeaders = ["#", "Compromiso / Acción", "Responsable", "Fecha límite"];
+    ensureSpace(LH + 4);
+    let chx = M;
+    page.drawRectangle({ x: M, y: y - 4, width: CW, height: LH + 6, color: rgb(0, 0.42, 0.21) });
+    for (let i = 0; i < cHeaders.length; i++) {
+      page.drawText(cHeaders[i], { x: chx + 3, y, size: 9, font: boldFont, color: rgb(1, 1, 1) });
+      chx += cColW[i];
+    }
+    y -= LH + 8;
+    compromisos.forEach((c, i) => {
+      ensureSpace(LH + 4);
+      let cx = M;
+      const cells = [String(i + 1), c, "—", "—"];
+      for (let col = 0; col < cColW.length; col++) {
+        const lines = wrapLocal(cells[col], regularFont, 9, cColW[col] - 6);
+        page.drawText(lines[0] ?? "", { x: cx + 3, y, size: 9, font: regularFont, color: col === 0 ? rgb(0.3, 0.3, 0.3) : rgb(0.1, 0.1, 0.1) });
+        cx += cColW[col];
+      }
+      page.drawLine({ start: { x: M, y: y - LH }, end: { x: W - M, y: y - LH }, thickness: 0.2, color: rgb(0.85, 0.85, 0.85) });
+      y -= LH + 4;
+    });
+    y -= GAP;
+  }
+
   drawSH("FIRMAS");
-  const sigY = y - 30;
   ensureSpace(60);
+  const sigY = y - 30;
   page.drawLine({ start: { x: M + 20, y: sigY }, end: { x: M + 180, y: sigY }, thickness: 0.5, color: rgb(0.3, 0.3, 0.3) });
   page.drawText("Presidente del Comité", { x: M + 20, y: sigY - 14, size: 9, font: boldFont });
   page.drawLine({ start: { x: W - M - 180, y: sigY }, end: { x: W - M - 20, y: sigY }, thickness: 0.5, color: rgb(0.3, 0.3, 0.3) });

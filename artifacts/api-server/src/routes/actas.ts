@@ -54,6 +54,7 @@ router.post("/generar", async (req, res) => {
     hora_inicio,
     hora_fin,
     lugar,
+    citada_por,
     asistentes,
     puntos,
     transcripcion,
@@ -64,6 +65,7 @@ router.post("/generar", async (req, res) => {
     hora_inicio: string;
     hora_fin: string;
     lugar: string;
+    citada_por?: string;
     asistentes: unknown[];
     puntos: string[];
     transcripcion?: string;
@@ -93,6 +95,8 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
 
   const numeroActa = (resultado.numero_acta as string) ?? `${tipo_comite}-${fecha.substring(0, 7)}-v${version}`;
 
+  const comprimisosArr = Array.isArray(resultado.compromisos) ? (resultado.compromisos as unknown[]) : [];
+
   const newActa: Record<string, unknown> = {
     id: crypto.randomUUID(),
     empresa_id,
@@ -104,10 +108,12 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
     hora_inicio,
     hora_fin,
     lugar,
+    citada_por: citada_por ?? empresa.nombre,
     puntos_tratados: puntos,
     puntos_orden: puntos,
     asistentes_confirmados: asistentes,
     asistentes,
+    compromisos: comprimisosArr,
     acta_generada: resultado.texto_acta_completo ?? JSON.stringify(resultado),
     texto_acta: resultado.texto_acta_completo ?? JSON.stringify(resultado),
     estado: "borrador",
@@ -124,10 +130,12 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
       version,
       fecha_reunion: fecha,
       lugar,
+      citada_por: citada_por ?? empresa.nombre,
       puntos_tratados: puntos,
       acta_generada: resultado.texto_acta_completo ?? JSON.stringify(resultado),
       estado: "borrador",
       asistentes_confirmados: asistentes,
+      compromisos: comprimisosArr,
     })
     .select()
     .single();
@@ -189,8 +197,7 @@ async function handleExportar(req: Request, res: Response) {
     return res.status(500).json({ error: "Error al generar el documento" });
   }
 
-  const moduloFolder = tipoComite.toLowerCase().includes("convivencia") ? "Actas_Convivencia" : "Actas_COPASST";
-  const driveUrl = await uploadToEmpresaFolder(empresa.nombre, moduloFolder, fileName, buffer, contentType);
+  const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Actas", fileName, buffer, contentType);
   if (!driveUrl) {
     req.log.warn({ actaId, fileName }, "Drive upload failed — file not saved to Drive");
   } else {
@@ -244,10 +251,7 @@ router.post("/:actaId/subir-firmada", async (req, res) => {
     return res.status(400).json({ error: "file_base64 inválido" });
   }
 
-  const moduloFolder = tipoComite.toLowerCase().includes("convivencia")
-    ? "Actas_Convivencia_Firmadas"
-    : "Actas_COPASST_Firmadas";
-  const driveUrl = await uploadToEmpresaFolder(empresa.nombre, moduloFolder, safeName, buffer, resolvedMime);
+  const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Actas", safeName, buffer, resolvedMime);
 
   if (!driveUrl) {
     req.log.warn({ actaId }, "Drive upload failed for signed acta");
