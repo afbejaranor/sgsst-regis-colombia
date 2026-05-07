@@ -102,6 +102,9 @@ Cédula trabajador: ${cedula_trabajador ?? "No especificado"}`;
 async function handleInforme(req: Request, res: Response) {
   const { examenId } = req.params;
   const formato = ((req.query.formato as string) || "docx").toLowerCase();
+  if (formato !== "docx" && formato !== "pdf") {
+    return res.status(400).json({ error: "Formato inválido. Use 'docx' o 'pdf'." });
+  }
 
   let examen = (getDemoExamenById(examenId) ?? null) as Record<string, unknown> | null;
   if (!examen) {
@@ -138,6 +141,7 @@ async function handleInforme(req: Request, res: Response) {
   }
 
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Examenes", fileName, buffer, contentType);
+  if (!driveUrl) req.log.warn({ examenId, fileName }, "Drive upload failed — file not saved to Drive");
 
   res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);

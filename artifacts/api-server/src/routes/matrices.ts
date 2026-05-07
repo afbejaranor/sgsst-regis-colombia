@@ -100,6 +100,9 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
 async function handleExportar(req: Request, res: Response) {
   const { matrizId } = req.params;
   const formato = ((req.query.formato as string) || "docx").toLowerCase();
+  if (formato !== "docx" && formato !== "pdf") {
+    return res.status(400).json({ error: "Formato inválido. Use 'docx' o 'pdf'." });
+  }
 
   let matriz = (getDemoMatrizById(matrizId) ?? null) as Record<string, unknown> | null;
   if (!matriz) {
@@ -136,6 +139,7 @@ async function handleExportar(req: Request, res: Response) {
   }
 
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Matrices", fileName, buffer, contentType);
+  if (!driveUrl) req.log.warn({ matrizId, fileName }, "Drive upload failed — file not saved to Drive");
 
   res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);

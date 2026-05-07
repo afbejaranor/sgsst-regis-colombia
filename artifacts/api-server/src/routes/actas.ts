@@ -112,6 +112,9 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
 async function handleExportar(req: Request, res: Response) {
   const { actaId } = req.params;
   const formato = ((req.query.formato as string) || "docx").toLowerCase();
+  if (formato !== "docx" && formato !== "pdf") {
+    return res.status(400).json({ error: "Formato inválido. Use 'docx' o 'pdf'." });
+  }
 
   let acta = (getDemoActaById(actaId) ?? null) as Record<string, unknown> | null;
   if (!acta) {
@@ -150,6 +153,7 @@ async function handleExportar(req: Request, res: Response) {
   const tipoComite = (acta.tipo_comite as string) ?? "COPASST";
   const moduloFolder = tipoComite.toLowerCase().includes("convivencia") ? "Actas_Convivencia" : "Actas_COPASST";
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, moduloFolder, fileName, buffer, contentType);
+  if (!driveUrl) req.log.warn({ actaId, fileName }, "Drive upload failed — file not saved to Drive");
 
   res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
