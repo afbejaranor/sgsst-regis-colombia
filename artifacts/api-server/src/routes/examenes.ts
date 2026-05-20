@@ -7,6 +7,7 @@ import { SKILL_EXTRACTOR_MEDICO } from "../lib/skills";
 import { DEMO_EMPRESAS } from "../lib/demo-data";
 import { generateExamenDocx, generateExamenPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
+import { sendEmail, buildExamenConfirmacionHtml } from "../lib/email";
 
 const router = Router();
 
@@ -79,6 +80,21 @@ Cédula trabajador: ${cedula_trabajador ?? "No especificado"}`;
   } catch (err) {
     req.log.error({ err }, "Failed to persist examen to DB");
     examenId = crypto.randomUUID();
+  }
+
+  const emailTrabajador = (resultado.email_trabajador as string | undefined) ?? null;
+  if (emailTrabajador) {
+    const empresaInfo = await resolveEmpresa(empresa_id);
+    sendEmail(
+      emailTrabajador,
+      `Resultado examen médico ocupacional — ${empresaInfo.nombre}`,
+      buildExamenConfirmacionHtml({
+        nombreTrabajador: nombre_trabajador ?? "Trabajador",
+        concepto: (resultado.concepto as string) ?? "pendiente",
+        empresa: empresaInfo.nombre,
+        fecha: new Date().toLocaleDateString("es-CO"),
+      })
+    ).catch(() => {});
   }
 
   return res.json({

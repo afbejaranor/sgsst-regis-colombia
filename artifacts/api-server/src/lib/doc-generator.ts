@@ -85,6 +85,91 @@ function dataRow(label: string, value: string): TableRow {
   });
 }
 
+// ────────────── Traceability header helpers ──────────────
+
+function buildDocxHeader(empresa: EmpresaData, docPrefix: string): (Paragraph | Table)[] {
+  const now = new Date();
+  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const nitClean = empresa.nit.replace(/[^0-9]/g, "");
+  const codigo = `${docPrefix}-${nitClean}-${yearMonth}`;
+  const fechaCreacion = now.toLocaleDateString("es-CO");
+  return [
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 38, type: WidthType.PERCENTAGE },
+              shading: { fill: "006B35", type: ShadingType.CLEAR, color: "auto" },
+              children: [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  spacing: { before: 80, after: 0 },
+                  children: [new TextRun({ text: "SG-SST", bold: true, size: 24, color: "FFFFFF" })],
+                }),
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  spacing: { before: 0, after: 80 },
+                  children: [new TextRun({ text: "REGIS COLOMBIA", size: 16, color: "CCFFCC" })],
+                }),
+              ],
+            }),
+            new TableCell({
+              width: { size: 62, type: WidthType.PERCENTAGE },
+              children: [
+                new Paragraph({ children: [new TextRun({ text: `Código: ${codigo}`, size: 18, bold: true })] }),
+                new Paragraph({ children: [new TextRun({ text: `Versión: v1.0   ·   Fecha: ${fechaCreacion}`, size: 16 })] }),
+                new Paragraph({ children: [new TextRun({ text: `Empresa: ${empresa.nombre}`, size: 16 })] }),
+                new Paragraph({ children: [new TextRun({ text: `NIT: ${empresa.nit}`, size: 16 })] }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    }),
+    new Paragraph({ spacing: { after: 240 }, children: [] }),
+  ];
+}
+
+function drawPdfTraceabilityHeader(
+  page: PDFPage,
+  boldFont: PDFFont,
+  regularFont: PDFFont,
+  empresa: EmpresaData,
+  docPrefix: string,
+  W: number,
+  M: number,
+  yStart: number
+): number {
+  const now = new Date();
+  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const nitClean = empresa.nit.replace(/[^0-9]/g, "");
+  const codigo = `${docPrefix}-${nitClean}-${yearMonth}`;
+  const fechaCreacion = now.toLocaleDateString("es-CO");
+  const CW = W - 2 * M;
+  const headerH = 52;
+  let y = yStart;
+
+  const brandW = Math.floor(CW * 0.38);
+  page.drawRectangle({ x: M, y: y - headerH, width: brandW, height: headerH, color: rgb(0, 0.42, 0.21) });
+  const ssstW = boldFont.widthOfTextAtSize("SG-SST", 14);
+  page.drawText("SG-SST", { x: M + (brandW - ssstW) / 2, y: y - 18, size: 14, font: boldFont, color: rgb(1, 1, 1) });
+  const regisW = regularFont.widthOfTextAtSize("REGIS COLOMBIA", 9);
+  page.drawText("REGIS COLOMBIA", { x: M + (brandW - regisW) / 2, y: y - 32, size: 9, font: regularFont, color: rgb(0.8, 1, 0.8) });
+
+  const infoX = M + brandW + 8;
+  page.drawText(`Código: ${codigo}`, { x: infoX, y: y - 12, size: 9, font: boldFont, color: rgb(0.05, 0.05, 0.05) });
+  page.drawText(`Versión: v1.0   ·   Fecha: ${fechaCreacion}`, { x: infoX, y: y - 24, size: 8, font: regularFont, color: rgb(0.3, 0.3, 0.3) });
+  page.drawText(`Empresa: ${empresa.nombre}`, { x: infoX, y: y - 36, size: 8, font: regularFont, color: rgb(0.3, 0.3, 0.3) });
+  page.drawText(`NIT: ${empresa.nit}`, { x: infoX, y: y - 46, size: 8, font: regularFont, color: rgb(0.3, 0.3, 0.3) });
+
+  y -= headerH + 4;
+  page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: rgb(0, 0.42, 0.21) });
+  y -= 14;
+  return y;
+}
+
 export async function generateExamenDocx(examen: ExamenData, empresa: EmpresaData): Promise<Buffer> {
   const concepto = examen.concepto ?? "pendiente";
   const conceptoLabel = CONCEPTO_LABELS[concepto] ?? "PENDIENTE";
@@ -107,6 +192,7 @@ export async function generateExamenDocx(examen: ExamenData, empresa: EmpresaDat
       {
         properties: {},
         children: [
+          ...buildDocxHeader(empresa, "FO-SST-002"),
           new Paragraph({
             children: [
               new TextRun({ text: "INFORME DE SEGUIMIENTO DEL TRABAJADOR", bold: true, size: 28, color: "006B35" }),
@@ -301,6 +387,7 @@ export async function generateMatrizDocx(matriz: MatrizData, empresa: EmpresaDat
     sections: [{
       properties: {},
       children: [
+        ...buildDocxHeader(empresa, "FO-SST-003"),
         new Paragraph({
           children: [new TextRun({ text: "MATRIZ DE IDENTIFICACIÓN DE PELIGROS Y VALORACIÓN DE RIESGOS", bold: true, size: 26, color: "006B35" })],
           alignment: AlignmentType.CENTER,
@@ -404,6 +491,7 @@ export async function generateMatrizPdf(matriz: MatrizData, empresa: EmpresaData
 
   let page: PDFPage = pdfDoc.addPage([W, H]);
   let y = H - M;
+  y = drawPdfTraceabilityHeader(page, boldFont, regularFont, empresa, "FO-SST-003", W, M, y);
 
   function ensureSpace(n: number) { if (y - n < M + 30) { page = pdfDoc.addPage([W, H]); y = H - M; } }
   function drawWrapped(text: string, x: number, maxW: number, size: number, font: PDFFont) {
@@ -584,6 +672,7 @@ export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Pr
     sections: [{
       properties: {},
       children: [
+        ...buildDocxHeader(empresa, "FO-SST-001"),
         new Paragraph({
           children: [new TextRun({ text: `ACTA DE REUNIÓN - ${tipoComite}`, bold: true, size: 28, color: "006B35" })],
           alignment: AlignmentType.CENTER, spacing: { after: 100 },
@@ -713,6 +802,7 @@ export async function generateActaPdf(acta: ActaData, empresa: EmpresaData): Pro
 
   let page: PDFPage = pdfDoc.addPage([W, H]);
   let y = H - M;
+  y = drawPdfTraceabilityHeader(page, boldFont, regularFont, empresa, "FO-SST-001", W, M, y);
 
   function ensureSpace(n: number) { if (y - n < M + 30) { page = pdfDoc.addPage([W, H]); y = H - M; } }
   function wrapLocal(text: string, font: PDFFont, size: number, maxW: number): string[] {
@@ -900,6 +990,7 @@ export async function generateExamenPdf(examen: ExamenData, empresa: EmpresaData
 
   let page: PDFPage = pdfDoc.addPage([W, H]);
   let y = H - M;
+  y = drawPdfTraceabilityHeader(page, boldFont, regularFont, empresa, "FO-SST-002", W, M, y);
 
   function ensureSpace(needed: number) {
     if (y - needed < M + 30) {

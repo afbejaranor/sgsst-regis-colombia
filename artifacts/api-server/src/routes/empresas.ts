@@ -34,6 +34,7 @@ router.post("/", async (req, res) => {
     contacto_email,
     contacto_whatsapp,
     nivel_sgsst,
+    nivel_normativo,
   } = req.body as {
     nombre: string;
     nit: string;
@@ -47,6 +48,7 @@ router.post("/", async (req, res) => {
     contacto_email?: string;
     contacto_whatsapp?: string;
     nivel_sgsst?: string;
+    nivel_normativo?: string;
   };
 
   if (!nombre?.trim() || !nit?.trim() || !codigo_ciiu?.trim()) {
@@ -66,6 +68,9 @@ router.post("/", async (req, res) => {
     contacto_email: contacto_email ?? null,
     contacto_whatsapp: contacto_whatsapp ?? null,
     nivel_sgsst: nivel_sgsst ?? "estandar",
+    nivel_normativo: nivel_normativo ?? (
+      Number(num_empleados) <= 10 ? "7" : Number(num_empleados) <= 50 ? "21" : "60"
+    ),
     activa: true,
   };
 

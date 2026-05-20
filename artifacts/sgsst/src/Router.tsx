@@ -9,6 +9,7 @@ import Pila from "./pages/Pila";
 import Comites from "./pages/Comites";
 import PlanAccion from "./pages/PlanAccion";
 import NuevaEmpresa from "./pages/NuevaEmpresa";
+import Documentos from "./pages/Documentos";
 import Login from "./pages/Login";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,9 @@ export function AppRouter() {
       </Route>
       <Route path="/empresa/:id/plan">
         {() => <RequireAuth><PlanAccion /></RequireAuth>}
+      </Route>
+      <Route path="/empresa/:id/documentos">
+        {() => <RequireAuth><Documentos /></RequireAuth>}
       </Route>
       <Route>
         <div className="flex h-full items-center justify-center">

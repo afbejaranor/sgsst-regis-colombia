@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Building2, ArrowLeft, Save } from "lucide-react";
+import { Building2, ArrowLeft, Save, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -48,6 +48,13 @@ const NIVELES_SGSST = [
   { value: "avanzado", label: "Avanzado (+200 / alto riesgo)" },
 ];
 
+function calcNivelNormativo(numEmpleados: number | string): { nivel: "7" | "21" | "60"; label: string; color: string } {
+  const n = Number(numEmpleados);
+  if (!n || n <= 10) return { nivel: "7", label: "7 Estándares · Básico (Art. 9 Res. 0312)", color: "bg-blue-50 text-blue-700 border-blue-200" };
+  if (n <= 50) return { nivel: "21", label: "21 Estándares · Estándar (Art. 14 Res. 0312)", color: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+  return { nivel: "60", label: "60 Estándares · Avanzado (Art. 27 Res. 0312)", color: "bg-amber-50 text-amber-700 border-amber-200" };
+}
+
 export default function NuevaEmpresa() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
@@ -78,6 +85,9 @@ export default function NuevaEmpresa() {
     },
   });
 
+  const numEmpleadosWatch = watch("num_empleados");
+  const nivelInfo = calcNivelNormativo(numEmpleadosWatch);
+
   if (user?.role !== "admin") {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -106,6 +116,7 @@ export default function NuevaEmpresa() {
           contacto_email: values.contacto_email || undefined,
           contacto_whatsapp: values.contacto_whatsapp || undefined,
           nivel_sgsst: values.nivel_sgsst || undefined,
+          nivel_normativo: calcNivelNormativo(values.num_empleados).nivel,
         },
       },
       {
@@ -235,20 +246,12 @@ export default function NuevaEmpresa() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Nivel SG-SST (Res. 0312)</Label>
-              <Select
-                value={watch("nivel_sgsst")}
-                onValueChange={(v) => setValue("nivel_sgsst", v)}
-              >
-                <SelectTrigger data-testid="select-nivel-sgsst">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {NIVELES_SGSST.map((n) => (
-                    <SelectItem key={n.value} value={n.value}>{n.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Perfil Normativo (Res. 0312)</Label>
+              <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs font-medium ${nivelInfo.color}`}>
+                <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{nivelInfo.label}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Auto-calculado según N.° de trabajadores</p>
             </div>
           </CardContent>
         </Card>

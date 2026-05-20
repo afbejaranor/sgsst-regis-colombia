@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useState } from "react";
 import {
   useGetEmpresa,
@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, MapPin, Users, ChevronDown, ChevronRight, FolderOpen, ExternalLink } from "lucide-react";
+import { Building2, MapPin, Users, ChevronDown, ChevronRight, FolderOpen, ExternalLink, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { DRIVE_FOLDERS, DRIVE_ROOT } from "@/lib/drive-config";
@@ -180,6 +181,7 @@ function StandardRow({
 export default function EmpresaDetail() {
   const params = useParams<{ id: string }>();
   const empresaId = params.id ?? DEMO_ID;
+  const [, navigate] = useLocation();
 
   const { data: empresa, isLoading: loadingEmpresa } = useGetEmpresa(empresaId, {
     query: { queryKey: getGetEmpresaQueryKey(empresaId) },
@@ -210,10 +212,30 @@ export default function EmpresaDetail() {
           <p className="text-muted-foreground text-sm mt-1">NIT: {empresa?.nit} · CIIU: {empresa?.codigo_ciiu}</p>
         </div>
         <div className="flex items-center gap-3">
+          {(() => {
+            const nv = (empresa as { nivel_normativo?: string })?.nivel_normativo ?? "21";
+            const colorCls = nv === "7" ? "border-blue-300 text-blue-700 bg-blue-50" : nv === "21" ? "border-emerald-300 text-emerald-700 bg-emerald-50" : "border-amber-300 text-amber-700 bg-amber-50";
+            const label = nv === "7" ? "Básico" : nv === "21" ? "Estándar" : "Avanzado";
+            return (
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Estándares Res. 0312</span>
+                <Badge variant="outline" className={`text-sm px-3 py-1 ${colorCls}`}>{nv} Est. · {label}</Badge>
+              </div>
+            );
+          })()}
           <div className="flex flex-col items-end gap-1">
             <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Tamaño de empresa</span>
             <Badge variant="outline" className="text-sm px-3 py-1">{empresa?.tamano}</Badge>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1.5 text-xs text-emerald-700 border-emerald-300 bg-emerald-50 hover:bg-emerald-100"
+            onClick={() => navigate(`/empresa/${empresaId}/documentos`)}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Documentos
+          </Button>
           <a
             href={driveUrl}
             target="_blank"

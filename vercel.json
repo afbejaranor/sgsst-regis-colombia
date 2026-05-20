@@ -1,0 +1,8 @@
+﻿{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://RAILWAY_URL/api/:path*" }
+  ],
+  "buildCommand": "pnpm --filter @workspace/sgsst run build",
+  "outputDirectory": "artifacts/sgsst/dist/public",
+  "installCommand": "pnpm install"
+}

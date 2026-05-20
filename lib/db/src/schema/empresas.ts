@@ -16,6 +16,7 @@ export const empresasTable = pgTable("empresas", {
   contacto_email: text("contacto_email"),
   contacto_whatsapp: text("contacto_whatsapp"),
   nivel_sgsst: text("nivel_sgsst"),
+  nivel_normativo: text("nivel_normativo").notNull().default("21"),
   activa: boolean("activa").notNull().default(true),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

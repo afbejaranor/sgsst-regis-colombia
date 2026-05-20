@@ -6,3 +6,4 @@ export * from "./matrices_riesgo";
 export * from "./registros_pila";
 export * from "./comites";
 export * from "./trabajadores";
+export * from "./documentos_generales";
