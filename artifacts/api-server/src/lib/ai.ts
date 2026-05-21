@@ -3,7 +3,7 @@ import { logger } from "./logger";
 const OPENROUTER_API = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 
-export async function callAI(systemPrompt: string, userMessage: string): Promise<unknown> {
+export async function callAI(systemPrompt: string, userMessage: string, maxTokens = 4096): Promise<unknown> {
   const apiKey = process.env["OPENROUTER_API_KEY"];
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
 
@@ -22,7 +22,7 @@ export async function callAI(systemPrompt: string, userMessage: string): Promise
         { role: "user", content: userMessage },
       ],
       temperature: 0.1,
-      max_tokens: 4096,
+      max_tokens: maxTokens,
     }),
   });
 
@@ -35,7 +35,10 @@ export async function callAI(systemPrompt: string, userMessage: string): Promise
   const data = (await response.json()) as {
     choices: Array<{ message: { content: string } }>;
   };
-  const text = data.choices[0]?.message?.content ?? "";
+  const rawText = data.choices[0]?.message?.content ?? "";
+
+  // Strip reasoning/thinking tokens emitted by reasoning models
+  const text = rawText.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
 
   const jsonMatch = text.match(/```json\s*([\s\S]*?)```/) ?? text.match(/(\{[\s\S]*\})/);
   const clean = jsonMatch ? jsonMatch[1].trim() : text.trim();

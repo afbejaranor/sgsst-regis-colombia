@@ -11,6 +11,27 @@ import { sendEmail, buildExamenConfirmacionHtml } from "../lib/email";
 
 const router = Router();
 
+const examenCache = new Map<string, Record<string, unknown>>();
+
+function extractTextFromPdf(pdfBase64: string): string {
+  try {
+    const buf = Buffer.from(pdfBase64, "base64");
+    const raw = buf.toString("binary");
+    // Extract printable ASCII sequences (PDF text is often uncompressed for simple forms)
+    const sequences = raw.match(/[\x20-\x7E\n\r\t]{6,}/g) ?? [];
+    const text = sequences
+      .map((s) => s.trim())
+      .filter((s) => s.length > 5)
+      .filter((s) => !/^[\d\s./\\()\[\]<>*+=@#$%^&!]+$/.test(s))
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    return text.length > 200 ? text.substring(0, 8000) : "";
+  } catch {
+    return "";
+  }
+}
+
 async function resolveEmpresa(empresaId: string): Promise<EmpresaData> {
   const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
   if (demo) return demo;
@@ -40,11 +61,19 @@ router.post("/procesar", async (req, res) => {
     return res.status(400).json({ error: "empresa_id y pdf_base64 son requeridos" });
   }
 
-  const userMsg = `El siguiente contenido es un examen médico ocupacional. Analízalo y extrae la información estructurada bajo Res. 2346/2007.
+  const extractedText = extractTextFromPdf(pdf_base64);
+  const userMsg = extractedText.length > 0
+    ? `Examen médico ocupacional bajo Res. 2346/2007 Colombia. Extrae toda la información estructurada disponible.
 
-PDF Base64 (primeros 500 chars): ${pdf_base64.substring(0, 500)}...
-Nombre trabajador: ${nombre_trabajador ?? "No especificado"}
-Cédula trabajador: ${cedula_trabajador ?? "No especificado"}`;
+CONTENIDO DEL DOCUMENTO:
+${extractedText}
+
+Nombre del trabajador (del sistema): ${nombre_trabajador ?? "No especificado"}
+Cédula (del sistema): ${cedula_trabajador ?? "No especificado"}`
+    : `Examen médico ocupacional bajo Res. 2346/2007. El PDF es de imagen escaneada (no hay texto extraíble).
+Nombre del trabajador: ${nombre_trabajador ?? "No especificado"}
+Cédula: ${cedula_trabajador ?? "No especificado"}
+Devuelve concepto "pendiente" con observacion_adicional indicando que se requiere revisión manual del documento físico.`;
 
   let resultado: Record<string, unknown>;
   try {
@@ -80,6 +109,18 @@ Cédula trabajador: ${cedula_trabajador ?? "No especificado"}`;
   } catch (err) {
     req.log.error({ err }, "Failed to persist examen to DB");
     examenId = crypto.randomUUID();
+    examenCache.set(examenId, {
+      id: examenId,
+      empresa_id,
+      nombre_trabajador: nombre_trabajador ?? null,
+      cedula_trabajador: cedula_trabajador ?? null,
+      concepto: (resultado.concepto as string) ?? "pendiente",
+      tipo: (resultado.tipo_examen as string) ?? null,
+      fecha_examen: (resultado.fecha_examen as string) ?? null,
+      medico: (resultado.medico_nombre as string) ?? null,
+      restricciones: (resultado.restricciones as unknown[]) ?? [],
+      recomendaciones: (resultado.recomendaciones as unknown[]) ?? [],
+    });
   }
 
   const emailTrabajador = (resultado.email_trabajador as string | undefined) ?? null;
@@ -121,6 +162,9 @@ async function handleInforme(req: Request, res: Response) {
     examen = rows[0] as Record<string, unknown> ?? null;
   } catch (err) {
     req.log.warn({ err }, "DB unavailable for examen informe, trying demo fallback");
+  }
+  if (!examen) {
+    examen = examenCache.get(examenId) ?? null;
   }
   if (!examen) {
     examen = getDemoExamenById(examenId) ?? null;

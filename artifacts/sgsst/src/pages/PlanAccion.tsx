@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   Sparkles, Target, Clock, User, CheckCircle2, AlertCircle, AlertTriangle,
-  TrendingUp, ChevronDown, ChevronRight, Loader2
+  TrendingUp, ChevronDown, ChevronRight, Loader2, BookOpen, FileText, ListChecks
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,10 +23,16 @@ interface Accion {
   peso_porcentual: number;
   prioridad: "Alta" | "Media" | "Baja";
   recomendacion: string | null;
+  descripcion_brecha: string | null;
+  pasos_implementacion: string[] | null;
   responsable_sugerido: string | null;
   plazo_sugerido: string | null;
   recurso_estimado: string | null;
+  costo_aproximado: string | null;
+  documentos_requeridos: string[] | null;
+  normativa_referencia: string | null;
   indicador_verificacion: string | null;
+  criterio_verificacion: string | null;
 }
 
 interface PlanData {
@@ -100,11 +106,34 @@ function AccionRow({ accion, generado }: { accion: Accion; generado: boolean }) 
 
       {open && generado && accion.recomendacion && (
         <div className="border-t bg-muted/20 px-4 py-3 space-y-3">
+          {accion.descripcion_brecha && (
+            <div className="p-2 bg-red-50 border border-red-100 rounded text-xs text-red-800">
+              <span className="font-semibold">Brecha identificada: </span>{accion.descripcion_brecha}
+            </div>
+          )}
+
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Acción recomendada</p>
             <p className="text-sm">{accion.recomendacion}</p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+
+          {accion.pasos_implementacion && accion.pasos_implementacion.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                <ListChecks className="h-3.5 w-3.5" /> Pasos de implementación
+              </div>
+              <ol className="space-y-1.5">
+                {accion.pasos_implementacion.map((paso, i) => (
+                  <li key={i} className="flex gap-2 text-xs">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">{i + 1}</span>
+                    <span className="text-foreground/80 leading-snug pt-0.5">{paso.replace(/^Paso \d+:\s*/i, "")}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {accion.responsable_sugerido && (
               <div>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
@@ -127,11 +156,46 @@ function AccionRow({ accion, generado }: { accion: Accion; generado: boolean }) 
                 <p className="text-xs font-medium">{accion.recurso_estimado}</p>
               </div>
             )}
+            {accion.costo_aproximado && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-0.5">Costo aprox.</div>
+                <p className="text-xs font-medium">{accion.costo_aproximado}</p>
+              </div>
+            )}
           </div>
+
+          {accion.documentos_requeridos && accion.documentos_requeridos.length > 0 && (
+            <div>
+              <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                <FileText className="h-3.5 w-3.5" /> Documentos requeridos
+              </div>
+              <ul className="space-y-0.5">
+                {accion.documentos_requeridos.map((doc, i) => (
+                  <li key={i} className="text-xs text-foreground/80 flex gap-1.5 items-start">
+                    <span className="text-primary mt-0.5">•</span>{doc}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {accion.normativa_referencia && (
+            <div className="flex items-start gap-1.5 p-2 bg-blue-50 border border-blue-100 rounded">
+              <BookOpen className="h-3.5 w-3.5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-blue-800">{accion.normativa_referencia}</p>
+            </div>
+          )}
+
           {accion.indicador_verificacion && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Indicador de verificación</p>
               <p className="text-xs text-foreground/80">{accion.indicador_verificacion}</p>
+            </div>
+          )}
+          {accion.criterio_verificacion && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Evidencia para auditor</p>
+              <p className="text-xs text-foreground/80 italic">{accion.criterio_verificacion}</p>
             </div>
           )}
         </div>

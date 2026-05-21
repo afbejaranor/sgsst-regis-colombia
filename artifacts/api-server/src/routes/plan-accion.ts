@@ -120,12 +120,20 @@ router.post("/:empresaId/generar", async (req, res) => {
     } catch { /* ignore */ }
   }
 
-  const userMsg = `Empresa: ${empresa?.nombre ?? "Empresa"} | Sector CIIU: ${empresa?.codigo_ciiu ?? "N/A"} | Empleados: ${empresa?.num_empleados ?? "N/A"} | Ciudad: ${empresa?.ciudad ?? "Colombia"}
+  const totalPts = sorted.reduce((s, c) => s + Number(c.peso_porcentual), 0);
+  const userMsg = `DATOS DE LA EMPRESA:
+- Nombre: ${empresa?.nombre ?? "Empresa"}
+- Sector CIIU: ${empresa?.codigo_ciiu ?? "N/A"}
+- Número de empleados: ${empresa?.num_empleados ?? "N/A"}
+- Ciudad: ${empresa?.ciudad ?? "Colombia"}
+- Total criterios incumplidos: ${sorted.length}
+- Puntos en riesgo: ${Math.round(totalPts * 10) / 10} de 100
 
-Criterios incumplidos de la Resolución 0312 de 2019 (ordenados por peso):
-${sorted.map((c) => `- [${c.criterio_codigo}] (${c.peso_porcentual} pts, estado: ${c.estado}): ${c.criterio_descripcion} | Estándar: ${c.estandar}`).join("\n")}
+CRITERIOS INCUMPLIDOS (ordenados por impacto, mayor a menor):
+${sorted.map((c, i) => `${i + 1}. [${c.criterio_codigo}] ${c.criterio_descripcion}
+   Estándar: ${c.estandar} | Peso: ${c.peso_porcentual} pts | Estado actual: ${c.estado}`).join("\n\n")}
 
-Genera el plan de acción completo para llevar esta empresa al nivel Aceptable (≥90%).`;
+INSTRUCCIÓN: Genera el plan de acción DETALLADO y ESPECÍFICO para ${empresa?.nombre ?? "esta empresa"} del sector CIIU ${empresa?.codigo_ciiu ?? "N/A"} en Colombia. Cada acción debe incluir pasos concretos adaptados al tamaño (${empresa?.num_empleados ?? "N/A"} empleados) y sector de la empresa. El objetivo es alcanzar nivel Aceptable (≥90%) según Resolución 0312 de 2019.`;
 
   let resultado: Record<string, unknown>;
   try {
