@@ -81,10 +81,16 @@ export default function Dashboard() {
     );
   }
 
-  const empresas = dashboardData.empresas ?? [];
+  const allEmpresas = dashboardData.empresas ?? [];
+  const empresas = (user?.role === "admin" || !user?.empresas?.length)
+    ? allEmpresas
+    : allEmpresas.filter((e) => user?.empresas?.includes(e.id ?? ""));
   const alertasCount = empresas.filter(
     (e) => e.nivel_semaforo === "rojo" || e.nivel_semaforo === "amarillo"
   ).length;
+  const promedioCumplimiento = empresas.length
+    ? Math.round(empresas.reduce((s, e) => s + (e.porcentaje_cumplimiento ?? 0), 0) / empresas.length)
+    : (promedioCumplimiento ?? 0);
 
   return (
     <div className="space-y-6">
@@ -116,7 +122,7 @@ export default function Dashboard() {
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{dashboardData.total_empresas}</div>
+            <div className="text-3xl font-bold">{empresas.length}</div>
             <p className="text-xs text-muted-foreground mt-1">empresas activas</p>
           </CardContent>
         </Card>
@@ -128,18 +134,18 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className={cn("text-3xl font-bold",
-              (dashboardData.promedio_cumplimiento ?? 0) >= 90 ? "text-emerald-700" :
-              (dashboardData.promedio_cumplimiento ?? 0) >= 60 ? "text-amber-600" : "text-red-600"
+              (promedioCumplimiento ?? 0) >= 90 ? "text-emerald-700" :
+              (promedioCumplimiento ?? 0) >= 60 ? "text-amber-600" : "text-red-600"
             )}>
-              {dashboardData.promedio_cumplimiento}%
+              {promedioCumplimiento}%
             </div>
             <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className={cn("h-full rounded-full",
-                  (dashboardData.promedio_cumplimiento ?? 0) >= 90 ? "bg-emerald-500" :
-                  (dashboardData.promedio_cumplimiento ?? 0) >= 60 ? "bg-amber-500" : "bg-red-500"
+                  (promedioCumplimiento ?? 0) >= 90 ? "bg-emerald-500" :
+                  (promedioCumplimiento ?? 0) >= 60 ? "bg-amber-500" : "bg-red-500"
                 )}
-                style={{ width: `${dashboardData.promedio_cumplimiento ?? 0}%` }}
+                style={{ width: `${promedioCumplimiento ?? 0}%` }}
               />
             </div>
           </CardContent>

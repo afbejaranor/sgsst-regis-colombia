@@ -49,7 +49,7 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
 
   let resultado: Record<string, unknown>;
   try {
-    resultado = (await callAI(SKILL_MATRIZ_GTC45, userMsg)) as Record<string, unknown>;
+    resultado = (await callAI(SKILL_MATRIZ_GTC45, userMsg, 8192)) as Record<string, unknown>;
   } catch (err) {
     req.log.error({ err }, "AI matrix generation failed");
     return res.status(500).json({ error: "Error al generar la matriz con IA" });
