@@ -27,7 +27,7 @@ export function AppRouter() {
       <Route path="/login" component={Login} />
       <Route path="/" component={() => <Redirect to={user ? "/dashboard" : "/login"} />} />
       <Route path="/dashboard">
-        <RequireAuth><Dashboard /></RequireAuth>
+        {() => <RequireAuth><Dashboard /></RequireAuth>}
       </Route>
       <Route path="/admin/asignacion">
         {() => <RequireAuth><AsignacionConsultores /></RequireAuth>}
@@ -60,12 +60,14 @@ export function AppRouter() {
         {() => <RequireAuth><Documentos /></RequireAuth>}
       </Route>
       <Route>
-        <div className="flex h-full items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold">404</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Página no encontrada</p>
+        {() => (
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center">
+              <h1 className="text-2xl font-bold">404</h1>
+              <p className="mt-2 text-sm text-muted-foreground">Página no encontrada</p>
+            </div>
           </div>
-        </div>
+        )}
       </Route>
     </Switch>
   );
