@@ -10,6 +10,8 @@ import { uploadToEmpresaFolder } from "../lib/drive-client";
 
 const router = Router();
 
+const actaCache = new Map<string, Record<string, unknown>>();
+
 async function resolveEmpresa(empresaId: string): Promise<EmpresaData> {
   const demo = DEMO_EMPRESAS.find((e) => e.id === empresaId);
   if (demo) return demo;
@@ -116,6 +118,23 @@ Devuelve ÚNICAMENTE el JSON estructurado.`;
   } catch (err) {
     req.log.error({ err }, "Failed to persist acta to DB");
     actaId = crypto.randomUUID();
+    actaCache.set(actaId, {
+      id: actaId,
+      empresa_id,
+      numero_acta: numeroActa,
+      tipo_comite,
+      version,
+      fecha_reunion: fecha,
+      lugar,
+      hora_inicio,
+      hora_fin,
+      citada_por: citada_por ?? empresa.nombre,
+      puntos_tratados: puntos,
+      asistentes_confirmados: asistentes,
+      compromisos: compromisosArr,
+      acta_generada: (resultado.texto_acta_completo as string) ?? JSON.stringify(resultado),
+      estado: "borrador",
+    });
   }
 
   return res.json({
@@ -143,6 +162,9 @@ async function handleExportar(req: Request, res: Response) {
     acta = rows[0] as Record<string, unknown> ?? null;
   } catch (err) {
     req.log.error({ err }, "Error fetching acta for export");
+  }
+  if (!acta) {
+    acta = actaCache.get(actaId) ?? null;
   }
   if (!acta) {
     return res.status(404).json({ error: "Acta no encontrada" });

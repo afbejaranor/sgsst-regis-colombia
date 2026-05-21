@@ -337,10 +337,29 @@ export default function Actas() {
               {Array.isArray(lastResult.compromisos) && lastResult.compromisos.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2">Compromisos</p>
-                  <ul className="text-sm space-y-1 list-disc list-inside">
-                    {(lastResult.compromisos as unknown[]).map((c, i) => (
-                      <li key={i}>{typeof c === "string" ? c : JSON.stringify(c)}</li>
-                    ))}
+                  <ul className="text-sm space-y-2">
+                    {(lastResult.compromisos as unknown[]).map((c, i) => {
+                      const obj = typeof c === "string" ? null : (c as Record<string, unknown>);
+                      const descripcion = obj ? (obj.descripcion as string) ?? JSON.stringify(c) : (c as string);
+                      const responsable = obj?.responsable as string | undefined;
+                      const fechaLimite = obj?.fecha_limite as string | undefined;
+                      const numero = obj?.numero as number | undefined;
+                      return (
+                        <li key={i} className="flex gap-2">
+                          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold mt-0.5">{numero ?? i + 1}</span>
+                          <div className="flex-1">
+                            <p className="leading-snug">{descripcion}</p>
+                            {(responsable || fechaLimite) && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {responsable && <span>Responsable: <strong>{responsable}</strong></span>}
+                                {responsable && fechaLimite && " · "}
+                                {fechaLimite && <span>Fecha límite: <strong>{fechaLimite}</strong></span>}
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
