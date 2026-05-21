@@ -4,7 +4,7 @@ import { examenesMedicosTable, empresasTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { callAI } from "../lib/ai";
 import { SKILL_EXTRACTOR_MEDICO } from "../lib/skills";
-import { DEMO_EMPRESAS } from "../lib/demo-data";
+import { DEMO_EMPRESAS, getDemoExamenById } from "../lib/demo-data";
 import { generateExamenDocx, generateExamenPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 import { sendEmail, buildExamenConfirmacionHtml } from "../lib/email";
@@ -120,7 +120,10 @@ async function handleInforme(req: Request, res: Response) {
     const rows = await db.select().from(examenesMedicosTable).where(eq(examenesMedicosTable.id, examenId)).limit(1);
     examen = rows[0] as Record<string, unknown> ?? null;
   } catch (err) {
-    req.log.error({ err }, "Error fetching examen for informe");
+    req.log.warn({ err }, "DB unavailable for examen informe, trying demo fallback");
+  }
+  if (!examen) {
+    examen = getDemoExamenById(examenId) ?? null;
   }
   if (!examen) {
     return res.status(404).json({ error: "Examen no encontrado" });

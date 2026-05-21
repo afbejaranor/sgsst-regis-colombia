@@ -1,6 +1,8 @@
 export const DEMO_EMPRESA_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 export const EMPRESA2_ID = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
 export const EMPRESA3_ID = "c3d4e5f6-a7b8-9012-cdef-123456789012";
+export const EMPRESA4_ID = "d4e5f6a7-b8c9-0123-def0-123456789012";
+export const EMPRESA5_ID = "e5f6a7b8-c9d0-1234-ef01-234567890123";
 
 const SEED_EMPRESAS = [
   {
@@ -59,6 +61,44 @@ const SEED_EMPRESAS = [
     activa: true,
     created_at: "2024-03-01T00:00:00Z",
     updated_at: "2025-04-15T00:00:00Z",
+  },
+  {
+    id: EMPRESA4_ID,
+    nombre: "Logística y Transporte Colombia SAS",
+    nit: "900567123-4",
+    codigo_ciiu: "4923",
+    descripcion_actividad: "Transporte de carga por carretera",
+    tamano: "pequeña",
+    num_empleados: 30,
+    direccion: "Km 7 Autopista Norte Bodega 12",
+    ciudad: "Bucaramanga",
+    contacto_nombre: "Jorge Pineda",
+    contacto_email: "jorge.pineda@logicoltda.com",
+    contacto_whatsapp: "3167890123",
+    nivel_sgsst: "basico",
+    nivel_normativo: "21",
+    activa: true,
+    created_at: "2024-09-01T00:00:00Z",
+    updated_at: "2025-02-20T00:00:00Z",
+  },
+  {
+    id: EMPRESA5_ID,
+    nombre: "Supermercados El Barrio LTDA",
+    nit: "800234567-5",
+    codigo_ciiu: "4711",
+    descripcion_actividad: "Comercio al por menor de alimentos en establecimientos especializados",
+    tamano: "micro",
+    num_empleados: 8,
+    direccion: "Cl 72 # 43-20 Local 5",
+    ciudad: "Barranquilla",
+    contacto_nombre: "Luz Marina Herrera",
+    contacto_email: "lherrera@supermercadoelbarrio.com",
+    contacto_whatsapp: "3012345890",
+    nivel_sgsst: "minimo",
+    nivel_normativo: "7",
+    activa: true,
+    created_at: "2025-03-15T00:00:00Z",
+    updated_at: "2025-05-10T00:00:00Z",
   },
 ];
 
@@ -235,14 +275,66 @@ const states3: Estado[] = [
   "cumple", "cumple", "cumple", "en_proceso",
 ];
 
+// Empresa 4: Logística y Transporte Colombia SAS — ~45% (Moderadamente Aceptable)
+const states4: Estado[] = [
+  // I. Recursos (0-10)
+  "cumple", "cumple", "cumple", "cumple", "no_aplica", "cumple", "no_cumple", "no_cumple",
+  "en_proceso", "no_cumple", "no_cumple",
+  // II. Gestión Integral (11-21)
+  "cumple", "cumple", "en_proceso", "en_proceso", "no_cumple",
+  "no_cumple", "cumple", "no_cumple", "no_cumple", "no_cumple", "no_cumple",
+  // III. Gestión de la Salud (22-39)
+  "cumple", "no_cumple", "cumple", "cumple", "no_cumple",
+  "no_cumple", "no_cumple", "cumple", "no_cumple",
+  "no_cumple", "no_cumple", "no_cumple",
+  "no_cumple", "no_cumple", "no_cumple", "no_cumple", "no_cumple", "no_cumple",
+  // IV. Gestión de Peligros y Riesgos (40-49)
+  "cumple", "en_proceso", "no_cumple", "no_cumple",
+  "en_proceso", "no_cumple", "no_cumple", "cumple", "cumple", "cumple",
+  // V. Gestión de Amenazas (50-51)
+  "en_proceso", "no_cumple",
+  // VI. Verificación (52-55)
+  "no_cumple", "no_cumple", "no_cumple", "no_cumple",
+  // VII. Mejoramiento (56-59)
+  "no_cumple", "no_cumple", "no_cumple", "no_cumple",
+];
+
+// Empresa 5: Supermercados El Barrio — ~70% (Moderadamente Aceptable, micro empresa)
+const states5: Estado[] = [
+  // I. Recursos (0-10)
+  "cumple", "cumple", "cumple", "cumple", "no_aplica", "no_aplica", "no_aplica", "no_aplica",
+  "cumple", "no_cumple", "cumple",
+  // II. Gestión Integral (11-21)
+  "cumple", "cumple", "cumple", "cumple", "cumple",
+  "cumple", "cumple", "cumple", "cumple", "en_proceso", "no_cumple",
+  // III. Gestión de la Salud (22-39)
+  "cumple", "cumple", "cumple", "cumple", "cumple",
+  "cumple", "en_proceso", "cumple", "cumple",
+  "no_aplica", "no_aplica", "no_aplica",
+  "no_aplica", "no_aplica", "no_aplica", "no_aplica", "no_aplica", "no_aplica",
+  // IV. Gestión de Peligros y Riesgos (40-49)
+  "cumple", "cumple", "cumple", "no_cumple",
+  "cumple", "cumple", "cumple", "cumple", "cumple", "cumple",
+  // V. Gestión de Amenazas (50-51)
+  "cumple", "en_proceso",
+  // VI. Verificación (52-55)
+  "cumple", "no_cumple", "no_cumple", "no_cumple",
+  // VII. Mejoramiento (56-59)
+  "cumple", "cumple", "no_cumple", "no_cumple",
+];
+
 export const DEMO_CRITERIOS_E1 = makeCriterios(DEMO_EMPRESA_ID, "c", states1);
 export const DEMO_CRITERIOS_E2 = makeCriterios(EMPRESA2_ID, "d", states2);
 export const DEMO_CRITERIOS_E3 = makeCriterios(EMPRESA3_ID, "e", states3);
+export const DEMO_CRITERIOS_E4 = makeCriterios(EMPRESA4_ID, "f", states4);
+export const DEMO_CRITERIOS_E5 = makeCriterios(EMPRESA5_ID, "g", states5);
 
 export const DEMO_CRITERIOS = [
   ...DEMO_CRITERIOS_E1,
   ...DEMO_CRITERIOS_E2,
   ...DEMO_CRITERIOS_E3,
+  ...DEMO_CRITERIOS_E4,
+  ...DEMO_CRITERIOS_E5,
 ];
 
 export const DEMO_COMITES = [

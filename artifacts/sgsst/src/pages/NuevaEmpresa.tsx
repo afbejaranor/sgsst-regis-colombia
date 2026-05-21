@@ -88,11 +88,11 @@ export default function NuevaEmpresa() {
   const numEmpleadosWatch = watch("num_empleados");
   const nivelInfo = calcNivelNormativo(numEmpleadosWatch);
 
-  if (user?.role !== "admin") {
+  if (user?.role !== "admin" && user?.role !== "consultor") {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <Building2 className="h-12 w-12 text-muted-foreground" />
-        <p className="text-muted-foreground">Solo los administradores pueden registrar nuevas empresas.</p>
+        <p className="text-muted-foreground">Solo administradores y consultores pueden registrar nuevas empresas.</p>
         <Button variant="outline" onClick={() => navigate("/dashboard")}>
           <ArrowLeft className="h-4 w-4 mr-2" />Volver
         </Button>

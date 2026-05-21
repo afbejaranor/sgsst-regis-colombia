@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { FolderOpen, Upload, FileText, CheckCircle2, Clock, ArrowLeft, Plus } from "lucide-react";
 import { useLocation } from "wouter";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = (import.meta.env.VITE_API_BASE ?? import.meta.env.BASE_URL ?? "").replace(/\/+$/, "");
 const DEMO_EMPRESA_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
 const TIPOS_DOCUMENTO = [

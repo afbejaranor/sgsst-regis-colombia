@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { documentosCumplimientoTable, empresasTable } from "@workspace/db";
 import { eq, and, asc } from "drizzle-orm";
-import { DEMO_EMPRESA, getDemoCriterios } from "../lib/demo-data";
+import { DEMO_EMPRESA, getDemoCriterios, updateDemoCriterio } from "../lib/demo-data";
 
 const router = Router();
 
@@ -138,11 +138,13 @@ router.patch("/:empresaId/criterio/:criterioId", async (req, res) => {
       .returning();
 
     if (rows.length) return res.json(rows[0]);
-    return res.status(404).json({ error: "Criterio no encontrado" });
   } catch (err) {
-    req.log.error({ err }, "Error updating criterio");
-    return res.status(500).json({ error: "Error al actualizar criterio" });
+    req.log.warn({ err }, "DB PATCH failed, trying demo fallback");
   }
+
+  const updated = updateDemoCriterio(criterioId, estado, observaciones);
+  if (updated) return res.json(updated);
+  return res.status(404).json({ error: "Criterio no encontrado" });
 });
 
 export default router;

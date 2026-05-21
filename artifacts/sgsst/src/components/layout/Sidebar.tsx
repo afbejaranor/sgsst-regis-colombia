@@ -2,7 +2,7 @@ import { Link, useLocation, useRoute } from "wouter";
 import {
   LayoutDashboard, Building2, Stethoscope, ShieldAlert,
   FileText, FileSpreadsheet, Users, ChevronDown, ClipboardList,
-  LogOut, UserCircle, ShieldCheck,
+  LogOut, UserCircle, ShieldCheck, UserCog, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useListEmpresas } from "@workspace/api-client-react";
@@ -74,32 +74,72 @@ export function Sidebar() {
       <div className="flex-1 py-4 overflow-y-auto">
         <nav className="space-y-1 px-3">
           {user?.role === "admin" && (
-            <Link
-              href="/dashboard"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                location === "/dashboard"
-                  ? "bg-white/10 text-white"
-                  : "text-white/70 hover:bg-white/5 hover:text-white"
-              )}
-            >
-              <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
-              Dashboard
-            </Link>
+            <>
+              <Link
+                href="/dashboard"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  location === "/dashboard"
+                    ? "bg-white/10 text-white"
+                    : "text-white/70 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                Dashboard
+              </Link>
+              <Link
+                href="/empresa/nueva"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  location === "/empresa/nueva"
+                    ? "bg-white/10 text-white"
+                    : "text-white/70 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <Plus className="h-5 w-5 flex-shrink-0" />
+                Nueva Empresa
+              </Link>
+              <Link
+                href="/admin/asignacion"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  location === "/admin/asignacion"
+                    ? "bg-white/10 text-white"
+                    : "text-white/70 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <UserCog className="h-5 w-5 flex-shrink-0" />
+                Consultores
+              </Link>
+            </>
           )}
           {user?.role === "consultor" && (
-            <Link
-              href="/dashboard"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                location === "/dashboard"
-                  ? "bg-white/10 text-white"
-                  : "text-white/70 hover:bg-white/5 hover:text-white"
-              )}
-            >
-              <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
-              Mis Empresas
-            </Link>
+            <>
+              <Link
+                href="/dashboard"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  location === "/dashboard"
+                    ? "bg-white/10 text-white"
+                    : "text-white/70 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                Mis Empresas
+              </Link>
+              <Link
+                href="/empresa/nueva"
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  location === "/empresa/nueva"
+                    ? "bg-white/10 text-white"
+                    : "text-white/70 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <Plus className="h-5 w-5 flex-shrink-0" />
+                Nueva Empresa
+              </Link>
+            </>
           )}
 
           {empresas && empresas.length > 0 && (

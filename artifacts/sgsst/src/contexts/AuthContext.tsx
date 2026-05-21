@@ -33,8 +33,18 @@ const DEMO_USERS: (AuthUser & { password: string })[] = [
     empresas: [
       "b2c3d4e5-f6a7-8901-bcde-f12345678901",
       "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "d4e5f6a7-b8c9-0123-def0-123456789012",
     ],
     fecha_inicio: "2024-03-01", fecha_fin: "2026-12-31",
+  },
+  {
+    id: "u4", username: "ana.martinez", password: "consultor456",
+    role: "consultor", nombre: "Ana Martínez", cedula: "43218765",
+    empresas: [
+      "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "e5f6a7b8-c9d0-1234-ef01-234567890123",
+    ],
+    fecha_inicio: "2024-06-01", fecha_fin: "2027-06-30",
   },
   {
     id: "u3", username: "empresa1", password: "empresa123",

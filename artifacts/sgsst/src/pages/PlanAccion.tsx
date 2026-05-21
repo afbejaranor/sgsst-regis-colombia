@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = (import.meta.env.VITE_API_BASE ?? import.meta.env.BASE_URL ?? "").replace(/\/+$/, "");
 
 interface Accion {
   criterio_id: string;

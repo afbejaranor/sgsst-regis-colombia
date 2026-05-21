@@ -1,7 +1,7 @@
 import { logger } from "./logger";
 
 const OPENROUTER_API = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
+const MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 
 export async function callAI(systemPrompt: string, userMessage: string): Promise<unknown> {
   const apiKey = process.env["OPENROUTER_API_KEY"];
