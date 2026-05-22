@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { useLocation } from "wouter";
-import { useCreateEmpresa } from "@workspace/api-client-react";
+import { useCreateEmpresa, getGetDashboardResumenQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -122,6 +122,7 @@ export default function NuevaEmpresa() {
       {
         onSuccess: (empresa) => {
           qc.invalidateQueries({ queryKey: ["listEmpresas"] });
+          qc.invalidateQueries({ queryKey: getGetDashboardResumenQueryKey() });
           toast({ title: `Empresa "${empresa.nombre}" registrada exitosamente` });
           navigate(`/empresa/${empresa.id}`);
         },
