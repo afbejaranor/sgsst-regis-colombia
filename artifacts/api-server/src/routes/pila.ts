@@ -6,6 +6,7 @@ import { callAI } from "../lib/ai";
 import { SKILL_EXTRACTOR_PILA } from "../lib/skills";
 import { DEMO_EMPRESAS } from "../lib/demo-data";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
+import pdfParse from "pdf-parse";
 
 const router = Router();
 
@@ -23,18 +24,15 @@ async function resolveEmpresaNombre(empresaId: string): Promise<string | null> {
   }
 }
 
-function extractTextFromPdf(pdfBase64: string): string {
-  const buf = Buffer.from(pdfBase64, "base64");
-  const raw = buf.toString("binary");
-  const sequences = raw.match(/[\x20-\x7E\n\r\t]{6,}/g) ?? [];
-  const text = sequences
-    .map((s) => s.trim())
-    .filter((s) => s.length > 5)
-    .filter((s) => !/^[\d\s./\\()\[\]<>*+=@#$%^&!]+$/.test(s))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  return text.length > 200 ? text.substring(0, 8000) : "";
+async function extractTextFromPdf(pdfBase64: string): Promise<string> {
+  try {
+    const buf = Buffer.from(pdfBase64, "base64");
+    const data = await pdfParse(buf);
+    const text = data.text.replace(/\n{3,}/g, "\n\n").trim();
+    return text.length > 50 ? text.substring(0, 10000) : "";
+  } catch {
+    return "";
+  }
 }
 
 router.get("/:empresaId", async (req, res) => {
@@ -84,7 +82,7 @@ router.post("/procesar", async (req, res) => {
   }
 
   // Extract readable text from the PDF instead of sending raw base64
-  const extractedText = extractTextFromPdf(pdf_base64);
+  const extractedText = await extractTextFromPdf(pdf_base64);
   const contenidoPila = extractedText.length > 100
     ? `Texto extraído del PDF:\n${extractedText}`
     : `No se pudo extraer texto legible del PDF. Período solicitado: ${periodo}. Genera datos estimados marcados como confianza baja.`;

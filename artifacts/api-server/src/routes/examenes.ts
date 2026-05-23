@@ -8,25 +8,18 @@ import { DEMO_EMPRESAS, getDemoExamenById } from "../lib/demo-data";
 import { generateExamenDocx, generateExamenPdf, EmpresaData } from "../lib/doc-generator";
 import { uploadToEmpresaFolder } from "../lib/drive-client";
 import { sendEmail, buildExamenConfirmacionHtml } from "../lib/email";
+import pdfParse from "pdf-parse";
 
 const router = Router();
 
 const examenCache = new Map<string, Record<string, unknown>>();
 
-function extractTextFromPdf(pdfBase64: string): string {
+async function extractTextFromPdf(pdfBase64: string): Promise<string> {
   try {
     const buf = Buffer.from(pdfBase64, "base64");
-    const raw = buf.toString("binary");
-    // Extract printable ASCII sequences (PDF text is often uncompressed for simple forms)
-    const sequences = raw.match(/[\x20-\x7E\n\r\t]{6,}/g) ?? [];
-    const text = sequences
-      .map((s) => s.trim())
-      .filter((s) => s.length > 5)
-      .filter((s) => !/^[\d\s./\\()\[\]<>*+=@#$%^&!]+$/.test(s))
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-    return text.length > 200 ? text.substring(0, 8000) : "";
+    const data = await pdfParse(buf);
+    const text = data.text.replace(/\n{3,}/g, "\n\n").trim();
+    return text.length > 50 ? text.substring(0, 10000) : "";
   } catch {
     return "";
   }
@@ -61,7 +54,7 @@ router.post("/procesar", async (req, res) => {
     return res.status(400).json({ error: "empresa_id y pdf_base64 son requeridos" });
   }
 
-  const extractedText = extractTextFromPdf(pdf_base64);
+  const extractedText = await extractTextFromPdf(pdf_base64);
   const userMsg = extractedText.length > 0
     ? `Examen médico ocupacional bajo Res. 2346/2007 Colombia. Extrae toda la información estructurada disponible.
 
