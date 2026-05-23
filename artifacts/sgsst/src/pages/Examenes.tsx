@@ -22,6 +22,7 @@ import { DRIVE_FOLDERS, DRIVE_DOCS, type DriveDoc } from "@/lib/drive-config";
 import { CompanyPageHeader } from "@/components/CompanyPageHeader";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
 
 const CONCEPTO_CONFIG: Record<string, { label: string; icon: typeof CheckCircle2; cls: string }> = {
   apto: { label: "Apto", icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
@@ -106,7 +107,7 @@ export default function Examenes() {
     if (!lastResult?.examen_id) return;
     setDownloadingFormat(formato);
     try {
-      const resp = await fetch(`/api/examenes/${lastResult.examen_id}/informe?formato=${formato}`);
+      const resp = await fetch(`${API_BASE}/api/examenes/${lastResult.examen_id}/informe?formato=${formato}`);
       if (!resp.ok) throw new Error("Error generating report");
 
       const driveUrl = resp.headers.get("X-Drive-Url");

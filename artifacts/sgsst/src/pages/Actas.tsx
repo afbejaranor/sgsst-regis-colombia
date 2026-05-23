@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CompanyPageHeader } from "@/components/CompanyPageHeader";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
 
 interface FormValues {
   tipo_comite: "COPASST" | "convivencia";
@@ -118,7 +119,7 @@ export default function Actas() {
     const ext = format === "pdf" ? "pdf" : "docx";
     setDownloadingFormat(format);
     try {
-      const resp = await fetch(`/api/actas/${lastResult.acta_id}/exportar?formato=${ext}`);
+      const resp = await fetch(`${API_BASE}/api/actas/${lastResult.acta_id}/exportar?formato=${ext}`);
       if (!resp.ok) throw new Error("Error generating document");
       const driveUrl = resp.headers.get("X-Drive-Url");
       const blob = await resp.blob();
@@ -154,7 +155,7 @@ export default function Actas() {
       try {
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(",")[1];
-        const resp = await fetch(`/api/actas/${lastResult.acta_id}/subir-firmada`, {
+        const resp = await fetch(`${API_BASE}/api/actas/${lastResult.acta_id}/subir-firmada`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

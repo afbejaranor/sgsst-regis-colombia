@@ -23,6 +23,7 @@ import { CompanyPageHeader } from "@/components/CompanyPageHeader";
 import { DRIVE_FOLDERS } from "@/lib/drive-config";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
 
 const NIVEL_COLORS: Record<string, string> = {
   nivel_I: "bg-red-700 text-white",
@@ -110,7 +111,7 @@ export default function Matrices() {
     if (!lastResult?.matriz_id) return;
     setDownloadingFormat(formato);
     try {
-      const resp = await fetch(`/api/matrices/${lastResult.matriz_id}/exportar?formato=${formato}`);
+      const resp = await fetch(`${API_BASE}/api/matrices/${lastResult.matriz_id}/exportar?formato=${formato}`);
       if (!resp.ok) throw new Error("Error generating document");
       const driveUrl = resp.headers.get("X-Drive-Url");
       const blob = await resp.blob();
