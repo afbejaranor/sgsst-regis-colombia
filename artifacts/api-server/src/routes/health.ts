@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse } from "@workspace/api-zod";
+import { callAI } from "../lib/ai";
 
 const router: IRouter = Router();
 
@@ -45,6 +46,20 @@ router.get("/health/ai", async (_req, res) => {
     return res.json({ status: "ok", model: MODEL, response: text, elapsed_ms: elapsed });
   } catch (err) {
     return res.json({ status: "connection_error", model: MODEL, error: String(err) });
+  }
+});
+
+// Diagnostic: tests the exact same callAI() function used by matrices/examenes/actas
+router.get("/health/ai/full", async (_req, res) => {
+  const start = Date.now();
+  try {
+    const result = await callAI(
+      "Eres un asistente de prueba. Responde SOLO con JSON válido.",
+      'Responde exactamente: {"test":"ok","mensaje":"callAI funciona correctamente"}'
+    );
+    return res.json({ status: "ok", elapsed_ms: Date.now() - start, result });
+  } catch (err) {
+    return res.json({ status: "error", elapsed_ms: Date.now() - start, error: String(err) });
   }
 });
 
