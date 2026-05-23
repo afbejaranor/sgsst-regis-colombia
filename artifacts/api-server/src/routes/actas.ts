@@ -229,6 +229,7 @@ router.post("/:actaId/subir-firmada", async (req, res) => {
     const rows = await db.select().from(actasComiteTable).where(eq(actasComiteTable.id, actaId)).limit(1);
     acta = rows[0] as Record<string, unknown> ?? null;
   } catch { /* ignore */ }
+  if (!acta) acta = actaCache.get(actaId) ?? null;
   if (!acta) return res.status(404).json({ error: "Acta no encontrada" });
 
   const empresa = await resolveEmpresa(acta.empresa_id as string);
@@ -250,21 +251,24 @@ router.post("/:actaId/subir-firmada", async (req, res) => {
 
   const driveUrl = await uploadToEmpresaFolder(empresa.nombre, "Actas", safeName, buffer, resolvedMime);
 
-  if (!driveUrl) {
-    req.log.warn({ actaId }, "Drive upload failed for signed acta");
-    return res.status(502).json({ error: "Error al subir el archivo a Drive" });
-  }
-
   try {
-    await db.update(actasComiteTable)
-      .set({ drive_url_firmada: driveUrl, estado: "firmado" })
-      .where(eq(actasComiteTable.id, actaId));
+    if (driveUrl) {
+      await db.update(actasComiteTable)
+        .set({ drive_url_firmada: driveUrl, estado: "firmado" })
+        .where(eq(actasComiteTable.id, actaId));
+    } else {
+      // Drive not available (outside Replit) — still mark as firmado
+      req.log.warn({ actaId }, "Drive unavailable for signed acta — marking firmado without URL");
+      await db.update(actasComiteTable)
+        .set({ estado: "firmado" })
+        .where(eq(actasComiteTable.id, actaId));
+    }
   } catch (err) {
     req.log.warn({ err }, "Failed to update signed acta state");
   }
 
-  req.log.info({ actaId, driveUrl }, "Signed acta uploaded to Drive");
-  return res.json({ drive_url: driveUrl });
+  req.log.info({ actaId, driveUrl }, "Signed acta processed");
+  return res.json({ drive_url: driveUrl ?? null, drive_disponible: driveUrl !== null });
 });
 
 router.get("/:empresaId", async (req, res) => {
@@ -278,6 +282,7 @@ router.get("/:empresaId", async (req, res) => {
       fecha_reunion: actasComiteTable.fecha_reunion,
       estado: actasComiteTable.estado,
       drive_url: actasComiteTable.drive_url,
+      drive_url_firmada: actasComiteTable.drive_url_firmada,
       created_at: actasComiteTable.created_at,
     }).from(actasComiteTable)
       .where(eq(actasComiteTable.empresa_id, req.params.empresaId))

@@ -171,15 +171,19 @@ export default function Actas() {
             mime_type: file.type || "application/pdf",
           }),
         });
-        if (!resp.ok) throw new Error("Drive upload failed");
-        const result = await resp.json() as { drive_url: string };
+        if (!resp.ok) {
+          const errText = await resp.text().catch(() => "");
+          console.error("Upload acta firmada failed", resp.status, errText);
+          throw new Error(`Error ${resp.status}`);
+        }
+        const result = await resp.json() as { drive_url: string | null; drive_disponible?: boolean };
         setUploadActaStatus("success");
         setUploadDriveUrl(result.drive_url);
         qc.invalidateQueries({ queryKey: getListActasQueryKey(empresaId) });
-        toast({ title: `Acta firmada guardada en Drive` });
+        toast({ title: result.drive_disponible ? "Acta firmada guardada en Drive" : "Acta marcada como firmada" });
       } catch {
         setUploadActaStatus("error");
-        toast({ title: "Error al subir el archivo a Drive", variant: "destructive" });
+        toast({ title: "Error al procesar el archivo", variant: "destructive" });
       }
     };
     reader.onerror = () => {
@@ -404,7 +408,7 @@ export default function Actas() {
                 {uploadActaStatus === "success" && (
                   <div className="mt-2 flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span>Documento guardado en Drive.</span>
+                    <span>{uploadDriveUrl ? "Documento guardado en Drive." : "Acta marcada como firmada."}</span>
                     {uploadDriveUrl && (
                       <a href={uploadDriveUrl} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 underline">
                         <ExternalLink className="h-3 w-3" />Abrir
@@ -456,13 +460,18 @@ export default function Actas() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {a.drive_url ? (
-                        <a href={a.drive_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-emerald-700 hover:underline">
-                          <ExternalLink className="h-3 w-3" />Ver archivo
-                        </a>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
+                      {(() => {
+                        const row = a as typeof a & { drive_url_firmada?: string | null };
+                        const url = row.drive_url_firmada ?? a.drive_url;
+                        const label = row.drive_url_firmada ? "Ver firmada" : "Ver archivo";
+                        return url ? (
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-emerald-700 hover:underline">
+                            <ExternalLink className="h-3 w-3" />{label}
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                 ))}
