@@ -1,5 +1,5 @@
 import { useParams } from "wouter";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useProcesarPila } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,63 +8,60 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Clock, XCircle, ExternalLink } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Clock, XCircle, ExternalLink, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { CompanyPageHeader } from "@/components/CompanyPageHeader";
 import { DRIVE_FOLDERS } from "@/lib/drive-config";
 
 const DEMO_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/+$/, "");
 
 interface PilaRecord {
+  id?: string;
   periodo: string;
-  estado: "pagada" | "pendiente" | "parcial";
-  afiliados: number;
-  total: number | null;
+  estado: "pagada" | "pendiente" | "parcial" | "recibido" | string;
+  num_afiliados?: Record<string, number>;
+  aportes_liquidados?: Record<string, number>;
+  total?: number | null;
+  drive_url?: string | null;
+  fecha_recepcion?: string | null;
 }
 
-const PILA_TRACKING: Record<string, PilaRecord[]> = {
-  "a1b2c3d4-e5f6-7890-abcd-ef1234567890": [
-    { periodo: "2025-04", estado: "pendiente", afiliados: 45, total: null },
-    { periodo: "2025-03", estado: "parcial", afiliados: 44, total: 2658000 },
-    { periodo: "2025-02", estado: "pagada", afiliados: 45, total: 2920000 },
-    { periodo: "2025-01", estado: "pagada", afiliados: 45, total: 2780000 },
-    { periodo: "2024-12", estado: "pagada", afiliados: 44, total: 3100000 },
-    { periodo: "2024-11", estado: "pagada", afiliados: 44, total: 2980000 },
-  ],
-  "b2c3d4e5-f6a7-8901-bcde-f12345678901": [
-    { periodo: "2025-04", estado: "pagada", afiliados: 120, total: 18400000 },
-    { periodo: "2025-03", estado: "pagada", afiliados: 118, total: 17200000 },
-    { periodo: "2025-02", estado: "pagada", afiliados: 120, total: 18900000 },
-    { periodo: "2025-01", estado: "pagada", afiliados: 119, total: 18600000 },
-    { periodo: "2024-12", estado: "pagada", afiliados: 122, total: 19500000 },
-    { periodo: "2024-11", estado: "pagada", afiliados: 120, total: 17800000 },
-  ],
-  "c3d4e5f6-a7b8-9012-cdef-123456789012": [
-    { periodo: "2025-04", estado: "pagada", afiliados: 85, total: 13400000 },
-    { periodo: "2025-03", estado: "pagada", afiliados: 85, total: 13100000 },
-    { periodo: "2025-02", estado: "pagada", afiliados: 84, total: 12900000 },
-    { periodo: "2025-01", estado: "pagada", afiliados: 85, total: 12600000 },
-    { periodo: "2024-12", estado: "pagada", afiliados: 85, total: 13200000 },
-    { periodo: "2024-11", estado: "pagada", afiliados: 83, total: 12800000 },
-  ],
+const DEMO_TRACKING: PilaRecord[] = [
+  { periodo: "2025-04", estado: "pendiente", num_afiliados: { salud: 45, pension: 45, arl: 45, ccf: 45 }, total: null },
+  { periodo: "2025-03", estado: "parcial",   num_afiliados: { salud: 44, pension: 44, arl: 44, ccf: 44 }, total: 2658000 },
+  { periodo: "2025-02", estado: "pagada",    num_afiliados: { salud: 45, pension: 45, arl: 45, ccf: 45 }, total: 2920000 },
+  { periodo: "2025-01", estado: "pagada",    num_afiliados: { salud: 45, pension: 45, arl: 45, ccf: 45 }, total: 2780000 },
+  { periodo: "2024-12", estado: "pagada",    num_afiliados: { salud: 44, pension: 44, arl: 44, ccf: 44 }, total: 3100000 },
+  { periodo: "2024-11", estado: "pagada",    num_afiliados: { salud: 44, pension: 44, arl: 44, ccf: 44 }, total: 2980000 },
+];
+
+const ESTADO_CONFIG: Record<string, { label: string; cls: string; icon: typeof CheckCircle2 }> = {
+  pagada:   { label: "Pagada",    cls: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  recibido: { label: "Recibida",  cls: "bg-blue-100 text-blue-700 border-blue-200",         icon: CheckCircle2 },
+  pendiente:{ label: "Pendiente", cls: "bg-red-100 text-red-700 border-red-200",             icon: Clock },
+  parcial:  { label: "Parcial",   cls: "bg-amber-100 text-amber-700 border-amber-200",       icon: AlertTriangle },
 };
 
-const ESTADO_CONFIG = {
-  pagada: { label: "Pagada", cls: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
-  pendiente: { label: "Pendiente", cls: "bg-red-100 text-red-700 border-red-200", icon: Clock },
-  parcial: { label: "Parcial", cls: "bg-amber-100 text-amber-700 border-amber-200", icon: AlertTriangle },
-};
+function getEstadoConfig(estado: string) {
+  return ESTADO_CONFIG[estado] ?? ESTADO_CONFIG.pendiente;
+}
 
 function formatPeriodo(p: string) {
   const [y, m] = p.split("-");
   const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  return `${months[parseInt(m) - 1]} ${y}`;
+  return `${months[parseInt(m) - 1] ?? m} ${y}`;
 }
 
-function formatCurrency(n: number | null) {
-  if (n === null) return "—";
+function formatCurrency(n: number | null | undefined) {
+  if (!n) return "—";
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
+}
+
+function getTotalAfiliados(r: PilaRecord): number {
+  if (!r.num_afiliados) return 0;
+  return Math.max(...Object.values(r.num_afiliados));
 }
 
 export default function Pila() {
@@ -81,13 +78,39 @@ export default function Pila() {
   const [lastResult, setLastResult] = useState<NonNullable<ReturnType<typeof useProcesarPila>["data"]> | null>(null);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error">("idle");
   const [pilaDriveUrl, setPilaDriveUrl] = useState<string | null>(null);
+  const [records, setRecords] = useState<PilaRecord[]>(
+    empresaId === DEMO_ID ? DEMO_TRACKING : []
+  );
+  const [loadingRecords, setLoadingRecords] = useState(empresaId !== DEMO_ID);
 
   const procesar = useProcesarPila();
-  const tracking = PILA_TRACKING[empresaId] ?? PILA_TRACKING[DEMO_ID];
   const driveFolder = DRIVE_FOLDERS[empresaId]?.pila ?? DRIVE_FOLDERS[DEMO_ID]?.pila;
 
-  const pagadas = tracking.filter((t) => t.estado === "pagada").length;
-  const pendientes = tracking.filter((t) => t.estado !== "pagada").length;
+  // Load planilla records from DB
+  useEffect(() => {
+    async function fetchRecords() {
+      setLoadingRecords(true);
+      try {
+        const resp = await fetch(`${API_BASE}/api/pila/${empresaId}`);
+        if (resp.ok) {
+          const data = await resp.json() as PilaRecord[];
+          if (data.length > 0) {
+            setRecords(data);
+          } else if (empresaId === DEMO_ID) {
+            setRecords(DEMO_TRACKING);
+          }
+        }
+      } catch {
+        if (empresaId === DEMO_ID) setRecords(DEMO_TRACKING);
+      } finally {
+        setLoadingRecords(false);
+      }
+    }
+    fetchRecords();
+  }, [empresaId]);
+
+  const pagadas = records.filter((t) => t.estado === "pagada").length;
+  const pendientes = records.filter((t) => t.estado !== "pagada" && t.estado !== "recibido").length;
 
   function readFileAsBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -117,6 +140,25 @@ export default function Pila() {
           setUploadStatus("success");
           const url = (data as { drive_url?: string | null }).drive_url ?? null;
           setPilaDriveUrl(url);
+
+          // Build new record from the response and prepend to table
+          const numAfiliados = (data.num_afiliados as Record<string, number>) ?? {};
+          const aportesLiq = (data as { aportes_liquidados?: Record<string, number> }).aportes_liquidados ?? {};
+          const newRecord: PilaRecord = {
+            periodo: data.periodo ?? periodo,
+            estado: data.estado ?? "recibido",
+            num_afiliados: numAfiliados,
+            aportes_liquidados: aportesLiq,
+            total: aportesLiq.total ?? null,
+            drive_url: url,
+          };
+
+          setRecords((prev) => {
+            // Replace existing entry for same periodo, or prepend
+            const filtered = prev.filter((r) => r.periodo !== newRecord.periodo);
+            return [newRecord, ...filtered];
+          });
+
           toast({ title: url ? "Planilla procesada y archivada en Drive" : "Planilla procesada exitosamente" });
         },
         onError: () => {
@@ -143,7 +185,7 @@ export default function Pila() {
         <Card>
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Períodos registrados</p>
-            <p className="text-2xl font-bold">{tracking.length}</p>
+            <p className="text-2xl font-bold">{records.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -176,35 +218,56 @@ export default function Pila() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Período</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Afiliados</TableHead>
-                <TableHead className="text-right">Total pagado</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tracking.map((t) => {
-                const cfg = ESTADO_CONFIG[t.estado];
-                const Icon = cfg.icon;
-                return (
-                  <TableRow key={t.periodo}>
-                    <TableCell className="font-medium text-sm">{formatPeriodo(t.periodo)}</TableCell>
-                    <TableCell>
-                      <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-xs font-medium", cfg.cls)}>
-                        <Icon className="h-3 w-3" />
-                        {cfg.label}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right text-sm">{t.afiliados}</TableCell>
-                    <TableCell className="text-right text-sm font-medium">{formatCurrency(t.total)}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          {loadingRecords ? (
+            <div className="p-4 space-y-2">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          ) : records.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              <RefreshCw className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+              No hay planillas registradas. Cargue la primera planilla.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Afiliados</TableHead>
+                  <TableHead className="text-right">Total aportes</TableHead>
+                  <TableHead className="text-right">Drive</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {records.map((t) => {
+                  const cfg = getEstadoConfig(t.estado);
+                  const Icon = cfg.icon;
+                  return (
+                    <TableRow key={t.periodo}>
+                      <TableCell className="font-medium text-sm">{formatPeriodo(t.periodo)}</TableCell>
+                      <TableCell>
+                        <span className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-xs font-medium", cfg.cls)}>
+                          <Icon className="h-3 w-3" />
+                          {cfg.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-sm">{getTotalAfiliados(t) || "—"}</TableCell>
+                      <TableCell className="text-right text-sm font-medium">{formatCurrency(t.total)}</TableCell>
+                      <TableCell className="text-right">
+                        {t.drive_url ? (
+                          <a href={t.drive_url} target="_blank" rel="noopener noreferrer"
+                             className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+                            <ExternalLink className="h-3 w-3" />
+                            Ver
+                          </a>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -250,7 +313,13 @@ export default function Pila() {
               <p className="text-sm text-muted-foreground text-center">
                 Arrastre la planilla PILA en PDF aquí<br />o haga clic para seleccionar
               </p>
-              <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+              />
             </div>
 
             {procesar.isPending && (
@@ -262,9 +331,10 @@ export default function Pila() {
             {uploadStatus === "success" && !procesar.isPending && (
               <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-md text-sm text-emerald-700">
                 <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-                <span>Planilla cargada y archivada exitosamente{pilaDriveUrl ? " en Drive" : ""}.</span>
+                <span>Planilla cargada y procesada{pilaDriveUrl ? " · archivada en Drive" : ""}.</span>
                 {pilaDriveUrl && (
-                  <a href={pilaDriveUrl} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 underline text-xs">
+                  <a href={pilaDriveUrl} target="_blank" rel="noopener noreferrer"
+                     className="ml-auto flex items-center gap-1 underline text-xs">
                     <ExternalLink className="h-3 w-3" />Abrir en Drive
                   </a>
                 )}
@@ -304,6 +374,31 @@ export default function Pila() {
                   </div>
                 </div>
               )}
+              {(() => {
+                const aportes = (lastResult as { aportes_liquidados?: Record<string, number> }).aportes_liquidados;
+                if (!aportes || !Object.keys(aportes).length) return null;
+                const order = ["salud", "pension", "arl", "ccf", "sena", "icbf", "total"];
+                const entries = order
+                  .filter((k) => aportes[k] != null && aportes[k] > 0)
+                  .map((k) => [k, aportes[k]] as [string, number]);
+                if (!entries.length) return null;
+                return (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">Aportes Liquidados</p>
+                    <div className="space-y-1">
+                      {entries.map(([sistema, monto]) => (
+                        <div key={sistema} className={cn(
+                          "flex justify-between text-sm px-2 py-1 rounded",
+                          sistema === "total" ? "bg-primary/10 font-semibold" : "bg-muted/30"
+                        )}>
+                          <span className="uppercase text-xs">{sistema}</span>
+                          <span>{formatCurrency(monto)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               {alertas && alertas.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">

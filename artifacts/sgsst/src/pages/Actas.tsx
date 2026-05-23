@@ -119,8 +119,14 @@ export default function Actas() {
     const ext = format === "pdf" ? "pdf" : "docx";
     setDownloadingFormat(format);
     try {
-      const resp = await fetch(`${API_BASE}/api/actas/${lastResult.acta_id}/exportar?formato=${ext}`);
-      if (!resp.ok) throw new Error("Error generating document");
+      const url = `${API_BASE}/api/actas/${lastResult.acta_id}/exportar?formato=${ext}`;
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        console.error("Acta export failed", resp.status, errText, url);
+        toast({ title: `Error ${resp.status} al generar el documento`, variant: "destructive" });
+        return;
+      }
       const driveUrl = resp.headers.get("X-Drive-Url");
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
@@ -138,7 +144,8 @@ export default function Actas() {
         qc.invalidateQueries({ queryKey: getListActasQueryKey(empresaId) });
       }
       toast({ title: driveUrl ? "Documento guardado en Drive" : `Acta .${ext} descargada` });
-    } catch {
+    } catch (err) {
+      console.error("Acta download error:", err);
       toast({ title: "Error al generar el documento", variant: "destructive" });
     } finally {
       setDownloadingFormat(null);
