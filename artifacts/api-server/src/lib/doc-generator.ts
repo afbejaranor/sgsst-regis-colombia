@@ -56,6 +56,26 @@ const CONCEPTO_COLORS_PDF: Record<string, [number, number, number]> = {
   pendiente: [0.53, 0.53, 0.53],
 };
 
+function cleanDesarrolloText(raw: string): string {
+  // Normalise literal "\n" escape sequences that AI sometimes emits as text
+  const text = raw.replace(/\\n/g, "\n");
+
+  // Find the DESARROLLO marker (case-insensitive, optional "DE LA REUNIÓN" suffix)
+  const match = text.match(/DESARROLLO(?:\s+DE\s+LA\s+REUNI[ÓO]N)?\s*:\s*/i);
+  if (match && match.index !== undefined) {
+    let after = text.slice(match.index + match[0].length);
+    // Strip trailing COMPROMISOS section if present
+    const comprMatch = after.match(/\n?\s*COMPROMISOS(?:\s+Y\s+ACCIONES)?\s*:/i);
+    if (comprMatch && comprMatch.index !== undefined) {
+      after = after.slice(0, comprMatch.index);
+    }
+    return after.replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // Fallback: return text as-is (with literal \n normalised)
+  return text.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function toStringList(arr: unknown[]): string[] {
   return arr.map((item) => {
     if (typeof item === "string") return item;
@@ -650,7 +670,7 @@ export async function generateActaDocx(acta: ActaData, empresa: EmpresaData): Pr
   const asistentes = (acta.asistentes ?? acta.asistentes_confirmados ?? []) as Record<string, string>[];
   const puntos = (acta.puntos_orden ?? acta.puntos_tratados ?? []) as string[];
   const compromisos = toStringList((acta.compromisos ?? []) as unknown[]);
-  const textoActa = (acta.acta_generada ?? acta.texto_acta ?? "No disponible") as string;
+  const textoActa = cleanDesarrolloText((acta.acta_generada ?? acta.texto_acta ?? "No disponible") as string);
   const genDate = new Date().toLocaleDateString("es-CO");
 
   const sectionHeader = (text: string) =>
@@ -844,7 +864,7 @@ export async function generateActaPdf(acta: ActaData, empresa: EmpresaData): Pro
   const asistentes = (acta.asistentes ?? acta.asistentes_confirmados ?? []) as Record<string, string>[];
   const puntos = (acta.puntos_orden ?? acta.puntos_tratados ?? []) as string[];
   const compromisos = toStringList((acta.compromisos ?? []) as unknown[]);
-  const textoActa = (acta.acta_generada ?? acta.texto_acta ?? "No disponible") as string;
+  const textoActa = cleanDesarrolloText((acta.acta_generada ?? acta.texto_acta ?? "No disponible") as string);
   const genDate = new Date().toLocaleDateString("es-CO");
 
   const titleStr = `ACTA DE REUNIÓN - ${tipoComite}`;
